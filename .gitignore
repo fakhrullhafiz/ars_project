@@ -1,0 +1,41 @@
+# ===== ROS2 =====
+ros2_workspace/build/
+ros2_workspace/install/
+ros2_workspace/log/
+**/__pycache__/
+*.pyc
+
+# ===== Arduino =====
+*.hex
+*.elf
+*.bin
+*.map
+arduino/**/build/
+.pio/
+
+# ===== OS / Editor cruft =====
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
+
+# ===== Claude Code =====
+.claude/settings.local.json
+
+# ===== Logs / temp =====
+*.log
+*.tmp
+.env
+
+# ===== Large/binary CAD or media files =====
+# CAD and STL files belong in Google Drive, not this repo — Git handles
+# text/code well but not binary CAD diffs. If something CAD-related ends
+# up here by accident, these patterns catch the common export formats.
+*.stl
+*.3mf
+*.step
+*.stp
+*.f3d
