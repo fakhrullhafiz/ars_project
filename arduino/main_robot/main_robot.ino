@@ -5,45 +5,48 @@
   obstacle-stop commands from the RPLIDAR/perception side.
 
   PREREQUISITES — confirm both of these work BEFORE using this sketch:
-    - motor_control.ino: all 4 wheels respond correctly to direction/PWM
+    - motor_control.ino: all 4 wheels respond correctly to direction/speed
     - encoder_test.ino:  you have a calibrated COUNTS_PER_CM value (see below)
-
-  This combines motor driving + encoder feedback so the robot can be told
-  "drive forward 100 cm" and have it actually stop at ~100 cm, rather than
-  guessing with a fixed time delay.
 
   *** Update COUNTS_PER_CM below with YOUR calibrated value from encoder_test.ino
   before relying on this for distance accuracy. The placeholder value here is
   a rough guess and will NOT be accurate for your actual wheels. ***
 
   SERIAL COMMAND PROTOCOL (interface for Layer 2 / perception side):
-    Over USB serial (115200 baud), this sketch accepts single-character commands:
+    Over USB serial (115200 baud), this sketch accepts:
       'F' <distance_cm>  -- drive forward N cm then stop  (e.g. "F100\n")
       'S'                -- emergency stop, immediately zero all motors
       'G'                -- resume/go (clears a stop triggered by 'S')
-    This is intentionally simple (not a binary protocol) so it's easy for
-    Person C's RPLIDAR-side code to send plain text commands over serial
-    without needing a shared binary format. Extend this protocol together
-    once Layer 2 obstacle-detection logic exists — don't let one side change
-    it unilaterally, since both sides depend on the exact command characters.
+    Intentionally simple text protocol so Person C's RPLIDAR code can send
+    plain strings over serial. Do not change command characters unilaterally --
+    both sides depend on this exact format.
+
+  WIRING -- motor pins match motor_control.ino exactly:
+    IN pins: ~D2 through ~D9 on right-side header (PWM-capable)
+    Encoder (front-left only for now): D18 (interrupt), D19 (direction)
 */
 
-// ---- Calibration — REPLACE with your measured value from encoder_test.ino ----
-const float COUNTS_PER_CM = 20.0;  // PLACEHOLDER — recalibrate, see file header
+// ---- Calibration -- REPLACE with your measured value from encoder_test.ino ----
+const float COUNTS_PER_CM = 20.0;  // PLACEHOLDER -- recalibrate before trusting distances
 
-// ---- Safety PWM ceiling — same reasoning as motor_control.ino, keep in sync ----
-const int MAX_PWM = 120;
-const int MIN_PWM = 60;
+// ---- Safety PWM ceiling -- keep in sync with motor_control.ino ----
+// 180/255 (~70%) matches the confirmed 2S battery: 6.0V motor rating / 8.4V
+// full-charge pack voltage is ~71%. See motor_control.ino and CLAUDE.md for
+// the full reasoning -- do not raise further without motor temp testing.
+const int MAX_PWM = 180;  // out of 255 (~70%)
+const int MIN_PWM = 60;   // below this the motor may not overcome static friction
 
-// ---- Motor pins (must match your actual wiring — see motor_control.ino) ----
-const int FL_IN1 = 22, FL_IN2 = 23, FL_PWM = 2;
-const int FR_IN1 = 24, FR_IN2 = 25, FR_PWM = 3;
-const int RL_IN1 = 30, RL_IN2 = 31, RL_PWM = 6;
-const int RR_IN1 = 32, RR_IN2 = 33, RR_PWM = 7;
+// ---- Motor pins -- must match motor_control.ino exactly ----
+const int FL_IN1 = 2,  FL_IN2 = 3;   // Front-Left  (~D2, ~D3)
+const int FR_IN1 = 4,  FR_IN2 = 5;   // Front-Right (~D4, ~D5)
+const int RL_IN1 = 6,  RL_IN2 = 7;   // Rear-Left   (~D6, ~D7)
+const int RR_IN1 = 8,  RR_IN2 = 9;   // Rear-Right  (~D8, ~D9)
 
-// ---- Encoder pins — front-left shown; extend to all 4 wheels once this works ----
-const int ENC_A_PIN = 18;  // separate interrupt pin from anything in encoder_test.ino bring-up
-const int ENC_B_PIN = 19;
+// ---- Encoder pins -- interrupt-capable pins on right-side header ----
+// D18 = TX1, D19 = RX1 on the board label -- usable as digital I/O when
+// Serial1 is not in use, which is the case here.
+const int ENC_A_PIN = 18;  // interrupt-capable, connect to encoder channel A
+const int ENC_B_PIN = 19;  // direction sense,   connect to encoder channel B
 
 volatile long encoderCount = 0;
 
@@ -55,10 +58,10 @@ long targetCounts = 0;
 void setup() {
   Serial.begin(115200);
 
-  pinMode(FL_IN1, OUTPUT); pinMode(FL_IN2, OUTPUT); pinMode(FL_PWM, OUTPUT);
-  pinMode(FR_IN1, OUTPUT); pinMode(FR_IN2, OUTPUT); pinMode(FR_PWM, OUTPUT);
-  pinMode(RL_IN1, OUTPUT); pinMode(RL_IN2, OUTPUT); pinMode(RL_PWM, OUTPUT);
-  pinMode(RR_IN1, OUTPUT); pinMode(RR_IN2, OUTPUT); pinMode(RR_PWM, OUTPUT);
+  pinMode(FL_IN1, OUTPUT); pinMode(FL_IN2, OUTPUT);
+  pinMode(FR_IN1, OUTPUT); pinMode(FR_IN2, OUTPUT);
+  pinMode(RL_IN1, OUTPUT); pinMode(RL_IN2, OUTPUT);
+  pinMode(RR_IN1, OUTPUT); pinMode(RR_IN2, OUTPUT);
 
   pinMode(ENC_A_PIN, INPUT_PULLUP);
   pinMode(ENC_B_PIN, INPUT_PULLUP);
@@ -77,13 +80,9 @@ void loop() {
       state = IDLE;
       Serial.println(F("Target reached, stopped."));
     }
-    // NOTE: this drives open-loop speed with a closed-loop distance cutoff —
-    // it does not yet correct for left/right drift (e.g. one side reaching
-    // target counts before the other due to wheel slip or motor variance).
-    // A straightforward next improvement: track each wheel's encoder
-    // independently and adjust individual wheel PWM to keep them in sync.
-    // Left as a deliberate v1 simplification — flag if drift becomes a problem
-    // during Week 3 testing.
+    // NOTE: open-loop speed with closed-loop distance cutoff -- does not yet
+    // correct for left/right drift. Track per-wheel encoders independently
+    // and adjust individual PWM if drift becomes a real problem in testing.
   }
 }
 
@@ -106,17 +105,13 @@ void handleSerialCommands() {
       Serial.println(F(" cm"));
     }
   } else if (cmd == 'S') {
-    // Emergency stop — this is the hook Layer 2 (RPLIDAR obstacle detection)
-    // calls into. Person C: send the single character 'S' over serial the
-    // moment an obstacle is detected within the stop threshold.
+    // Emergency stop -- Person C sends 'S' the moment an obstacle is detected.
     stopAll();
     state = EMERGENCY_STOPPED;
     Serial.println(F("EMERGENCY STOP"));
   } else if (cmd == 'G') {
-    // Resume after an emergency stop has been cleared (obstacle no longer
-    // in path). Does NOT automatically resume the previous drive command —
-    // intentional: re-evaluating whether it's still safe to continue belongs
-    // on the perception side, not assumed here.
+    // Clear emergency stop. Does NOT auto-resume previous drive -- re-issuing
+    // an 'F' command is intentional so the perception side re-validates first.
     if (state == EMERGENCY_STOPPED) {
       state = IDLE;
       Serial.println(F("Cleared emergency stop, ready for new command."));
@@ -124,36 +119,35 @@ void handleSerialCommands() {
   }
 }
 
-void setMotor(int in1, int in2, int pwmPin, int speed) {
+// speed: -255..255. Active IN pin gets analogWrite for speed; other held LOW.
+void setMotor(int in1, int in2, int speed) {
   int clamped = constrain(abs(speed), 0, MAX_PWM);
   if (clamped > 0 && clamped < MIN_PWM) clamped = MIN_PWM;
 
   if (speed > 0) {
-    digitalWrite(in1, HIGH);
+    analogWrite(in1, clamped);
     digitalWrite(in2, LOW);
   } else if (speed < 0) {
     digitalWrite(in1, LOW);
-    digitalWrite(in2, HIGH);
+    analogWrite(in2, clamped);
   } else {
     digitalWrite(in1, LOW);
     digitalWrite(in2, LOW);
-    clamped = 0;
   }
-  analogWrite(pwmPin, clamped);
 }
 
 void driveForward() {
-  setMotor(FL_IN1, FL_IN2, FL_PWM, MAX_PWM);
-  setMotor(FR_IN1, FR_IN2, FR_PWM, MAX_PWM);
-  setMotor(RL_IN1, RL_IN2, RL_PWM, MAX_PWM);
-  setMotor(RR_IN1, RR_IN2, RR_PWM, MAX_PWM);
+  setMotor(FL_IN1, FL_IN2,  MAX_PWM);
+  setMotor(FR_IN1, FR_IN2,  MAX_PWM);
+  setMotor(RL_IN1, RL_IN2,  MAX_PWM);
+  setMotor(RR_IN1, RR_IN2,  MAX_PWM);
 }
 
 void stopAll() {
-  setMotor(FL_IN1, FL_IN2, FL_PWM, 0);
-  setMotor(FR_IN1, FR_IN2, FR_PWM, 0);
-  setMotor(RL_IN1, RL_IN2, RL_PWM, 0);
-  setMotor(RR_IN1, RR_IN2, RR_PWM, 0);
+  setMotor(FL_IN1, FL_IN2, 0);
+  setMotor(FR_IN1, FR_IN2, 0);
+  setMotor(RL_IN1, RL_IN2, 0);
+  setMotor(RR_IN1, RR_IN2, 0);
 }
 
 void handleEncoderA() {
