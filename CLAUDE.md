@@ -40,12 +40,20 @@ If any of these facts appear to conflict with something in code or in a teammate
 
 ## Current status — update as things actually change, don't let this go stale
 
-- **Front-left motor (D2/D3, driver 1 channel A): confirmed working (2026-07-01).** Spins on both `w`/`s`, correct opposite directions, thermal-checked at `MAX_PWM=180` — ran warm, not hot.
-- **Front-right motor (D4/D5, driver 1 channel B): wired (2026-07-01), same driver module as front-left — no splitter needed for this pair.** Testing in progress.
-- **Rear pair (driver 2, IN1–IN4 → D6–D9) blocked:** needs a way to fan out Mega 5V/GND (and/or battery power) to a second driver module. Team's lab assistant suggested a small hand-made splitter (wire splice or breadboard) — safe for the logic 5V/GND lines (low current), but **do not use a breadboard for the battery/motor-power lines** — breadboard contacts aren't rated for motor stall current and can overheat. If the splitter is on the power path, use a soldered/twisted joint with heat shrink or a proper screw terminal block instead. Re-check this if the battery ever changes from the confirmed 2S pack — higher cell count/voltage means higher potential stall current through the same splice.
+- **Full rewire completed 2026-07-16:** all 4 motors and all 4 encoders are now physically wired (breadboard used for logic-side 5V/GND fan-out only; battery power to both driver modules is a soldered/twisted splice with heat shrink, not breadboard). This supersedes the earlier "rear pair blocked, needs a splitter" note below — the splitter question is resolved. **Wiring is confirmed done; hardware behavior (spin direction, thermal, encoder counts) is not yet re-tested after this rewire** — do not assume prior confirmations (e.g. front-left motor thermal check) still hold until re-verified.
+  - Front-left motor: D2/D3, driver 1 channel A. Previously confirmed working (2026-07-01) at `MAX_PWM=180`, but re-check after the rewire before trusting that result.
+  - Front-right motor: D4/D5, driver 1 channel B.
+  - Rear-left motor: D6/D7, driver 2 channel A.
+  - Rear-right motor: D8/D9, driver 2 channel B.
+  - All 4 pending a fresh direction + thermal test via `motor_control.ino`.
+- Encoders, all 4 now wired:
+  - Front-left: D18/D19 (hardware interrupt).
+  - Front-right: D20/D21 (hardware interrupt).
+  - Rear-left: D11/D24 (pin-change interrupt — D11 is not a hardware-interrupt pin; see below).
+  - Rear-right: D12/D25 (pin-change interrupt).
+  - Only 6 Mega pins (2, 3, 18, 19, 20, 21) support true hardware interrupts, and D2/D3 are taken by the front-left motor, so rear encoders use the Mega's PCINT0 group instead (raw AVR registers, not a library). `encoder_test.ino` now implements this for all 4 wheels; `main_robot.ino` still only tracks the front-left encoder (unchanged, sufficient for current Layer 1 scope).
 - `COUNTS_PER_CM` in `main_robot.ino` is still the placeholder value (20.0), pending real calibration via `encoder_test.ino`.
-- `MAX_PWM = 180` in both Arduino sketches is now hardware-validated on the front-left motor (see above); front-right, and the rear pair once wired, still need their own thermal check.
-- Front-left encoder (D18/D19, matches existing code) and front-right encoder (D20/D21 — also interrupt-capable, previously unused) are being wired next, one at a time, for calibration via `encoder_test.ino`. Note: only 6 pins on the Mega support hardware interrupts (2, 3, 18, 19, 20, 21); with D2/D3 taken by the front-left motor, only D18–D21 remain, which is exactly enough for 2 encoders (FL + FR) but **not enough for all 4 wheels** without switching to pin-change interrupts later — flagged here so it isn't a surprise when the rear encoders come up.
+- `MAX_PWM = 180` in both Arduino sketches was validated on the front-left motor pre-rewire; treat that as unconfirmed again until re-tested. Front-right and rear pair have never had their own thermal check.
 
 ## Repo layout
 CAD files, the project plan, the report draft, and assembly photos are in Google Drive, not here. If you need them, ask the user to paste/upload the relevant content rather than assuming they're accessible from this repo.
@@ -53,7 +61,7 @@ CAD files, the project plan, the report draft, and assembly photos are in Google
 ## Architecture — how the pieces fit together
 
 **`arduino/` — three sketches, a progression, not three independent programs:**
-- `encoder_test.ino` — bring-up/calibration only. Wires up one encoder (front-left), prints raw pulse counts so a teammate can hand-derive `COUNTS_PER_CM`. Not meant to run on the finished robot.
+- `encoder_test.ino` — bring-up/calibration only. Reads all 4 encoders (FL/FR via hardware interrupt, RL/RR via pin-change interrupt since only 6 Mega pins support true hardware interrupts) and prints raw pulse counts so a teammate can hand-derive `COUNTS_PER_CM` per wheel. Not meant to run on the finished robot.
 - `motor_control.ino` — Layer 0 baseline. Open-loop, keyboard-driven (`w/a/s/d/q/e/x` over serial) mecanum kinematics. `setMotor()`/`stopAll()`/pin assignments here are the canonical reference — `main_robot.ino` duplicates them and must be kept in sync by hand (no shared header exists yet).
 - `main_robot.ino` — Layer 1, supersedes `motor_control.ino` for actual runs. Same motor/pin layout, plus one encoder (interrupt-driven) for closed-loop "drive N cm" and a text serial command protocol that is the integration point with the ROS2 side.
 
