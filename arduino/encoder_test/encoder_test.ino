@@ -10,15 +10,28 @@
     2. Measure counts-per-revolution and, combined with wheel diameter,
        derive counts-per-cm — the calibration constant Layer 1 code needs.
 
-  WIRING (per encoder, component doc Section 7.3):
-    Enc A -> any interrupt-capable pin (Mega: 2, 3, 18, 19, 20, 21)
-    Enc B -> any digital pin (used for direction sensing)
-    VCC   -> +5V (encoder logic supply, separate from motor power)
-    GND   -> common ground
+  WIRING -- this sketch tests ONE encoder at a time. D2/D3/D4/D5 etc. are
+  already claimed by motor IN pins (see motor_control.ino), so don't reuse
+  those here even though this sketch runs standalone.
 
-  This sketch wires up ONE encoder (front-left) as a worked example.
-  Duplicate the pattern for the other 3 wheels once this one is confirmed
-  working — don't copy-paste all 4 untested at once, debug one at a time.
+  4-ENCODER PIN PLAN (finalized 2026-07-16 -- matches main_robot.ino and
+  arduino/WIRING.md). Only phase A needs a true interrupt pin; phase B is
+  read with a plain digitalRead() inside the ISR, so it can be any free
+  digital pin -- that's why all 4 corners fit on the Mega's 4 remaining
+  interrupt pins (D18-D21):
+    Corner | Enc A (interrupt) | Enc B (direction)
+    FL     | D18                | D22   <- this sketch's default below
+    FR     | D19                | D23
+    RL     | D20                | D24
+    RR     | D21                | D25
+  To test a different corner, change ENC_A_PIN/ENC_B_PIN below to that row,
+  reupload, and confirm counts before moving to the next one -- don't wire
+  and test all 4 at once.
+
+  VCC -> +5V (encoder logic supply, separate from motor power -- NOT the
+         lever-nut battery block, that's raw battery voltage and will fry
+         the encoder's Hall-sensor electronics)
+  GND -> common ground (shared with Mega GND / driver GND / battery- rail)
 
   CALIBRATION PROCEDURE:
     1. Upload this sketch, open Serial Monitor at 115200 baud.
@@ -29,8 +42,8 @@
     6. Record this value — main_robot.ino needs it for distance-based driving.
 */
 
-const int ENC_A_PIN = 2;   // interrupt-capable pin
-const int ENC_B_PIN = 4;   // direction sense pin
+const int ENC_A_PIN = 18;  // interrupt-capable pin -- FL by default, see pin plan above
+const int ENC_B_PIN = 22;  // direction sense pin
 
 volatile long encoderCount = 0;
 

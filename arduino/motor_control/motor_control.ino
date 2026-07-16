@@ -37,6 +37,13 @@
 const int MAX_PWM = 180;  // out of 255 (~70%) — matches confirmed 2S battery (6.0V / 8.4V)
 const int MIN_PWM = 60;   // below this the motor may not overcome static friction
 
+// ---- Diagnostic/bring-up only: slow single-motor test speed ----
+// Deliberately low so the shaft turns slowly enough to read a sticky-note flag
+// and confirm which corner + which direction. Well under MAX_PWM. With no wheel
+// load the motor spins faster for a given duty, so this stays gentle. Bump it a
+// little if a motor won't start turning; drop it if it's still too fast to read.
+const int TEST_PWM = 90;  // out of 255 — bring-up identification only, not driving
+
 // ---- All pins on the right-side header, PWM-capable (marked ~ on board) ----
 const int FL_IN1 = 2,  FL_IN2 = 3;   // Front-Left  (~D2, ~D3)
 const int FR_IN1 = 4,  FR_IN2 = 5;   // Front-Right (~D4, ~D5)
@@ -55,6 +62,9 @@ void setup() {
   Serial.println(F("motor_control ready. Type a single character + Enter:"));
   Serial.println(F("  w=forward  s=reverse  a=strafe-left  d=strafe-right"));
   Serial.println(F("  q=rotate-left  e=rotate-right  x=stop"));
+  Serial.println(F("--- single-motor ID test (slow) ---"));
+  Serial.println(F("  1=FL fwd  2=FR fwd  3=RL fwd  4=RR fwd"));
+  Serial.println(F("  5=FL rev  6=FR rev  7=RL rev  8=RR rev  (x=stop)"));
 }
 
 void loop() {
@@ -68,6 +78,16 @@ void loop() {
       case 'q': rotateLeft();    Serial.println(F("rotate left"));  break;
       case 'e': rotateRight();   Serial.println(F("rotate right")); break;
       case 'x': stopAll();       Serial.println(F("stop"));         break;
+
+      // ---- single-motor ID test (slow) — one corner at a time ----
+      case '1': stopAll(); setMotor(FL_IN1, FL_IN2,  TEST_PWM); Serial.println(F("FL forward (slow)")); break;
+      case '2': stopAll(); setMotor(FR_IN1, FR_IN2,  TEST_PWM); Serial.println(F("FR forward (slow)")); break;
+      case '3': stopAll(); setMotor(RL_IN1, RL_IN2,  TEST_PWM); Serial.println(F("RL forward (slow)")); break;
+      case '4': stopAll(); setMotor(RR_IN1, RR_IN2,  TEST_PWM); Serial.println(F("RR forward (slow)")); break;
+      case '5': stopAll(); setMotor(FL_IN1, FL_IN2, -TEST_PWM); Serial.println(F("FL reverse (slow)")); break;
+      case '6': stopAll(); setMotor(FR_IN1, FR_IN2, -TEST_PWM); Serial.println(F("FR reverse (slow)")); break;
+      case '7': stopAll(); setMotor(RL_IN1, RL_IN2, -TEST_PWM); Serial.println(F("RL reverse (slow)")); break;
+      case '8': stopAll(); setMotor(RR_IN1, RR_IN2, -TEST_PWM); Serial.println(F("RR reverse (slow)")); break;
       default: break;
     }
   }
