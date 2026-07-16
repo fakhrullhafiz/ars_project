@@ -53,13 +53,34 @@ driver *motor* VCC/GND (from the block). Keep them straight when troubleshooting
 - ⬜ **Mega GND ↔ block orange (battery −) rail** — verify with a multimeter.
   Without it the motor-control signals have no shared reference.
 
-### ④ Encoders (next step — bring up one at a time)
-- ⬜ **FL encoder**: yellow(A)→**D18**, green(B)→**D19**, blue(VCC)→5V, black(GND)→GND
-- ⬜ (optional, same pass) **FR encoder** → **D20/D21**
-- 🚫 **RL/RR encoders — deferred.** Only D18–D21 remain for interrupts (D2/D3
-  taken by FL motor), and the firmware currently reads only one encoder. The
-  baseline A→B goal needs distance from one encoder; per-wheel feedback is a
-  later refinement. Revisit the interrupt budget before wiring all four.
+### ④ Encoders (pin plan finalized 2026-07-16 — bring up one at a time)
+Only phase A needs a true hardware-interrupt pin (`attachInterrupt()` in the
+code); phase B is read with a plain `digitalRead()` inside that ISR, so it can
+go on any free digital pin. That means all 4 corners fit on the Mega's 4
+remaining interrupt pins (D18–D21, since D2/D3 are taken by the FL motor) —
+corrects an earlier note here that assumed both channels needed interrupt
+pins and that only 2 encoders (FL+FR) would fit.
+
+| Corner | Phase A — yellow (interrupt) | Phase B — green (direction) | VCC — blue | GND — black |
+|---|---|---|---|---|
+| FL | **D18** | **D22** | Mega 5V bus | Mega GND bus |
+| FR | **D19** | **D23** | Mega 5V bus | Mega GND bus |
+| RL | **D20** | **D24** | Mega 5V bus | Mega GND bus |
+| RR | **D21** | **D25** | Mega 5V bus | Mega GND bus |
+
+- ⬜ **FL encoder** — wire per the table above, verify with `encoder_test.ino`
+  (default pins already match FL) before moving on.
+- ⬜ **FR / RL / RR encoders** — same pattern, one corner at a time. Edit
+  `encoder_test.ino`'s `ENC_A_PIN`/`ENC_B_PIN` to that corner's row to verify
+  each before moving to the next; don't wire and test all 4 untested at once.
+- ⚠️ **Encoder VCC (blue) goes to the Mega 5V bus, never to the lever-nut
+  block.** The block outputs raw battery voltage (7.4–8.4V) — that will fry
+  the encoder's Hall-sensor electronics, which expect 5V logic.
+- 🚧 **Firmware note:** `main_robot.ino` currently only reads FL's counts (one
+  `volatile long encoderCount`, one ISR). Wiring all 4 now is safe — nothing
+  is damaged by idle connections — but RL/RR/FR won't produce live counts in
+  `main_robot.ino` until the code is extended with 4 separate counters/ISRs.
+  That's a firmware task for after wiring, not a blocker to wiring.
 
 ### ⑤ Arduino power / comms
 - ⬜ Mega **USB → SBC (or laptop)** — powers the Mega and carries the serial

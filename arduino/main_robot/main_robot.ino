@@ -23,7 +23,21 @@
 
   WIRING -- motor pins match motor_control.ino exactly:
     IN pins: ~D2 through ~D9 on right-side header (PWM-capable)
-    Encoder (front-left only for now): D18 (interrupt), D19 (direction)
+    Encoder (front-left only, this sketch): D18 (interrupt, phase A), D22 (phase B)
+
+  4-ENCODER PIN PLAN (finalized 2026-07-16, only FL is wired into this sketch's
+  logic so far -- see arduino/WIRING.md for full wiring status):
+    Only phase A needs a true interrupt pin (attachInterrupt below); phase B is
+    read with a plain digitalRead() inside the ISR, so it can sit on any free
+    digital pin. That means all 4 corners fit on the Mega's 4 remaining
+    interrupt pins (D18-D21, since D2/D3 are taken by the FL motor) without
+    needing pin-change interrupts:
+      FL: A=D18, B=D22   (wired into this sketch)
+      FR: A=D19, B=D23   (reserved, not yet read by this code)
+      RL: A=D20, B=D24   (reserved, not yet read by this code)
+      RR: A=D21, B=D25   (reserved, not yet read by this code)
+    Reading all 4 simultaneously needs 4 separate counters + 4 ISRs -- a
+    firmware extension for later, not implemented here yet.
 */
 
 // ---- Calibration -- REPLACE with your measured value from encoder_test.ino ----
@@ -42,11 +56,12 @@ const int FR_IN1 = 4,  FR_IN2 = 5;   // Front-Right (~D4, ~D5)
 const int RL_IN1 = 6,  RL_IN2 = 7;   // Rear-Left   (~D6, ~D7)
 const int RR_IN1 = 8,  RR_IN2 = 9;   // Rear-Right  (~D8, ~D9)
 
-// ---- Encoder pins -- interrupt-capable pins on right-side header ----
-// D18 = TX1, D19 = RX1 on the board label -- usable as digital I/O when
-// Serial1 is not in use, which is the case here.
+// ---- Encoder pins (front-left only) -- see 4-encoder pin plan in header ----
+// D18 = TX1 on the board label -- usable as digital I/O when Serial1 is not
+// in use, which is the case here. D22 is a plain digital pin, no interrupt
+// needed for phase B.
 const int ENC_A_PIN = 18;  // interrupt-capable, connect to encoder channel A
-const int ENC_B_PIN = 19;  // direction sense,   connect to encoder channel B
+const int ENC_B_PIN = 22;  // direction sense,   connect to encoder channel B
 
 volatile long encoderCount = 0;
 
