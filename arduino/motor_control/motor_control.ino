@@ -34,7 +34,12 @@
 */
 
 // ---- Tunable safety ceiling — see comment block above before changing ----
-const int MAX_PWM = 180;  // out of 255 (~70%) — matches confirmed 2S battery (6.0V / 8.4V)
+// TEMPORARY: lowered from 180 to 90 for visual direction-check testing only —
+// slow enough to watch each wheel/gear turn and confirm it matches the
+// assigned rotation. Lower duty cycle is strictly safer for the motors than
+// 180, not riskier. Restore to MAX_PWM = 180 once direction is confirmed;
+// don't leave this in place for real driving or thermal testing.
+const int MAX_PWM = 80;   // out of 255 (~35%) — TEMP for direction-check, revert to 180 after
 const int MIN_PWM = 60;   // below this the motor may not overcome static friction
 
 // ---- All pins on the right-side header, PWM-capable (marked ~ on board) ----
