@@ -74,21 +74,21 @@ all 4 corners would fit on D18–D21.
 - ⚠️ **Encoder VCC (blue) goes to the Mega 5V bus, never to the lever-nut
   block.** The block outputs raw battery voltage (7.4–8.4V) — that will fry
   the encoder's Hall-sensor electronics, which expect 5V logic.
-- 🚧 **Firmware note:** `main_robot.ino` currently only reads FL's counts (one
-  `volatile long encoderCount`, one ISR, A=D18/B=D19). Extending it to all 4
-  wheels needs 4 separate counters/ISRs and, for RL/RR, the same PCINT0
-  handling `encoder_test.ino` uses — a firmware task, not a blocker to wiring
-  (which is done).
+- ✅ **Firmware note:** `main_robot.ino` now reads all 4 wheels' counts (ported
+  from `encoder_test.ino`, same PCINT0 handling for RL/RR). Only FL's count
+  drives the `F<cm>` stop condition — the other 3 are diagnostics-only, since
+  `COUNTS_PER_CM` was calibrated against FL alone.
 
 ### ⑤ Arduino power / comms
 - ⬜ Mega **USB → SBC (or laptop)** — powers the Mega and carries the serial
   protocol (`F<cm>` / `S` / `G`). **The Mega is NOT powered from the block.**
 
-### 🚫 Blocked (not a wiring task)
-- Motor spin-**direction** verification (forward/reverse/strafe/rotate) waits on
-  the mechanical shaft-to-wheel coupling fix (motor shaft dia. vs wheel bore) —
-  Person A / Haikal's scope. Confirm directions with wheels on, then swap OUT
-  leads for any wrong wheel.
+### Motor spin-direction — resolved
+- ✅ **Motor spin-direction verified (2026-07-17)** — forward/reverse/strafe/
+  rotate all confirmed correct per-wheel via `motor_control.ino`'s single-motor
+  ID test and combined movement keys, plus correct motion on the ground. No OUT
+  lead swaps were needed. This supersedes the earlier note here that direction
+  verification was blocked on a mechanical shaft-to-wheel coupling fix.
 
 ## Suggested arrange order
 1. **Common ground first** (③) — bond Mega GND to the orange rail, confirm continuity.

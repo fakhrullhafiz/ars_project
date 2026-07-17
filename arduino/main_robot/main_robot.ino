@@ -23,29 +23,30 @@
 
   WIRING -- motor pins match motor_control.ino exactly:
     IN pins: ~D2 through ~D9 on right-side header (PWM-capable)
-    Encoder (front-left only, this sketch): D18 (interrupt, phase A), D19 (phase B)
 
   4-ENCODER PIN PLAN (matches physical wiring done 2026-07-16 -- see CLAUDE.md
-  and arduino/encoder_test.ino; only FL is wired into this sketch's logic so
-  far, see arduino/WIRING.md for full wiring status):
+  and arduino/encoder_test.ino; all 4 wheels now wired into this sketch's
+  logic, 2026-07-17):
     Only D2, D3, D18, D19, D20, D21 are true hardware-interrupt pins on the
     Mega, and D2/D3 are already taken by the FL motor, so only FL and FR get
     full interrupt-pin pairs. RL and RR use the Mega's PCINT0 group instead
-    (raw AVR registers, see encoder_test.ino) -- not implemented in this
-    sketch yet:
-      FL: A=D18, B=D19   (wired into this sketch)
-      FR: A=D20, B=D21   (reserved, not yet read by this code)
-      RL: A=D11, B=D24   (pin-change interrupt; reserved, not yet read by this code)
-      RR: A=D12, B=D25   (pin-change interrupt; reserved, not yet read by this code)
-    Reading all 4 simultaneously needs 4 separate counters + 4 ISRs (and, for
-    RL/RR, PCINT0 handling like encoder_test.ino's) -- a firmware extension
-    for later, not implemented here yet.
+    (raw AVR registers, same approach as encoder_test.ino):
+      FL: A=D18, B=D19   (hardware interrupt)
+      FR: A=D20, B=D21   (hardware interrupt)
+      RL: A=D11, B=D24   (pin-change interrupt)
+      RR: A=D12, B=D25   (pin-change interrupt)
+    IMPORTANT -- only flCount drives the 'F<cm>' stop condition below.
+    frCount/rlCount/rrCount are tracked and printed for diagnostics only
+    (e.g. spotting a wheel that's under/over-rotating vs. the others) --
+    they do NOT affect drive timing or distance accuracy. COUNTS_PER_CM was
+    measured on FL alone, so only FL's count is calibrated; averaging in
+    the other 3 wheels would need its own fresh hardware validation first.
 */
 
 // ---- Calibration -- measured via encoder_test.ino (2026-07-17) ----
 // Front-left wheel, 1 hand-rotated revolution = 70 counts (magnitude; FL reads
 // negative on forward per the documented sign convention, doesn't matter here
-// since handleSerialCommands() compares abs(encoderCount)). Wheel diameter
+// since loop() compares abs(flCount)). Wheel diameter
 // 97mm -> circumference = pi * 97mm =~ 304.73mm = 30.473cm.
 // COUNTS_PER_CM = 70 / 30.473 =~ 2.297
 const float COUNTS_PER_CM = 2.297;
@@ -68,14 +69,21 @@ const int FR_IN1 = 4,  FR_IN2 = 5;   // Front-Right (~D4, ~D5)
 const int RL_IN1 = 6,  RL_IN2 = 7;   // Rear-Left   (~D6, ~D7)
 const int RR_IN1 = 8,  RR_IN2 = 9;   // Rear-Right  (~D8, ~D9)
 
-// ---- Encoder pins (front-left only) -- see 4-encoder pin plan in header ----
-// D18 = TX1 on the board label -- usable as digital I/O when Serial1 is not
-// in use, which is the case here. D19 = RX1, also free and also
-// interrupt-capable, matching the physical FL wiring in encoder_test.ino.
-const int ENC_A_PIN = 18;  // interrupt-capable, connect to encoder channel A
-const int ENC_B_PIN = 19;  // direction sense,   connect to encoder channel B
+// ---- Encoder pins, all 4 wheels -- see 4-encoder pin plan in header ----
+// D18 = TX1 / D19 = RX1 on the board label -- usable as digital I/O when
+// Serial1 is not in use, which is the case here. Naming matches
+// encoder_test.ino, the proven reference implementation this was ported from.
+const int FL_A = 18, FL_B = 19;  // hardware interrupt
+const int FR_A = 20, FR_B = 21;  // hardware interrupt
+const int RL_A = 11, RL_B = 24;  // pin-change interrupt -- RL_A = Mega pin 11 = AVR PB5 = PCINT5
+const int RR_A = 12, RR_B = 25;  // pin-change interrupt -- RR_A = Mega pin 12 = AVR PB6 = PCINT6
 
-volatile long encoderCount = 0;
+// flCount is the only one used for the drive-to-distance stop condition
+// (see loop()). frCount/rlCount/rrCount are diagnostics-only -- see the
+// IMPORTANT note in the header comment above before wiring them into any
+// stop/steering logic.
+volatile long flCount = 0, frCount = 0, rlCount = 0, rrCount = 0;
+volatile uint8_t lastPINB = 0;
 
 // ---- State machine ----
 enum RobotState { IDLE, DRIVING, EMERGENCY_STOPPED };
@@ -90,9 +98,20 @@ void setup() {
   pinMode(RL_IN1, OUTPUT); pinMode(RL_IN2, OUTPUT);
   pinMode(RR_IN1, OUTPUT); pinMode(RR_IN2, OUTPUT);
 
-  pinMode(ENC_A_PIN, INPUT_PULLUP);
-  pinMode(ENC_B_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(ENC_A_PIN), handleEncoderA, RISING);
+  pinMode(FL_A, INPUT_PULLUP); pinMode(FL_B, INPUT_PULLUP);
+  pinMode(FR_A, INPUT_PULLUP); pinMode(FR_B, INPUT_PULLUP);
+  pinMode(RL_A, INPUT_PULLUP); pinMode(RL_B, INPUT_PULLUP);
+  pinMode(RR_A, INPUT_PULLUP); pinMode(RR_B, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(FL_A), handleFL, RISING);
+  attachInterrupt(digitalPinToInterrupt(FR_A), handleFR, RISING);
+
+  // RL/RR: pin-change interrupt on PCINT0 group (covers D10-D13, D50-D53),
+  // same approach as encoder_test.ino -- no true hardware-interrupt pins
+  // left free for them.
+  lastPINB = PINB;
+  PCICR |= (1 << PCIE0);
+  PCMSK0 |= (1 << PCINT5) | (1 << PCINT6);
 
   stopAll();
   Serial.println(F("main_robot ready. Commands: F<cm>  S  G"));
@@ -102,14 +121,23 @@ void loop() {
   handleSerialCommands();
 
   if (state == DRIVING) {
-    if (abs(encoderCount) >= targetCounts) {
+    if (abs(flCount) >= targetCounts) {
       stopAll();
       state = IDLE;
       Serial.println(F("Target reached, stopped."));
+      // Diagnostics only -- FL alone decided the stop above. Compare these
+      // 4 counts to spot a wheel that's under/over-rotating vs. the others;
+      // see the IMPORTANT note in the header comment before using them for
+      // anything beyond diagnostics.
+      Serial.print(F("Encoder counts -- FL:")); Serial.print(flCount);
+      Serial.print(F(" FR:")); Serial.print(frCount);
+      Serial.print(F(" RL:")); Serial.print(rlCount);
+      Serial.print(F(" RR:")); Serial.println(rrCount);
     }
     // NOTE: open-loop speed with closed-loop distance cutoff -- does not yet
-    // correct for left/right drift. Track per-wheel encoders independently
-    // and adjust individual PWM if drift becomes a real problem in testing.
+    // correct for left/right drift. frCount/rlCount/rrCount above are a step
+    // toward that; adjusting individual PWM based on them is still a future
+    // extension, not implemented here.
   }
 }
 
@@ -122,7 +150,7 @@ void handleSerialCommands() {
     float distanceCm = Serial.parseFloat();
     if (distanceCm > 0) {
       noInterrupts();
-      encoderCount = 0;
+      flCount = 0; frCount = 0; rlCount = 0; rrCount = 0;
       interrupts();
       targetCounts = (long)(distanceCm * COUNTS_PER_CM);
       state = DRIVING;
@@ -177,10 +205,24 @@ void stopAll() {
   setMotor(RR_IN1, RR_IN2, 0);
 }
 
-void handleEncoderA() {
-  if (digitalRead(ENC_B_PIN) == HIGH) {
-    encoderCount++;
-  } else {
-    encoderCount--;
+// Quadrature direction logic matches encoder_test.ino: if B is HIGH when A
+// rises, one direction; if B is LOW, the other.
+void handleFL() { if (digitalRead(FL_B) == HIGH) flCount++; else flCount--; }
+void handleFR() { if (digitalRead(FR_B) == HIGH) frCount++; else frCount--; }
+
+// Fires on ANY change on PB0-PB7 (D10-D13, D50-D53) -- must check which of
+// our two watched pins actually changed, and that it was a rising edge, to
+// match the RISING-only behavior used for FL/FR above. Identical to
+// encoder_test.ino's proven implementation.
+ISR(PCINT0_vect) {
+  uint8_t pinb = PINB;
+  uint8_t changed = pinb ^ lastPINB;
+
+  if ((changed & (1 << PCINT5)) && (pinb & (1 << PCINT5))) {  // D11 RL rising
+    if (digitalRead(RL_B) == HIGH) rlCount++; else rlCount--;
   }
+  if ((changed & (1 << PCINT6)) && (pinb & (1 << PCINT6))) {  // D12 RR rising
+    if (digitalRead(RR_B) == HIGH) rrCount++; else rrCount--;
+  }
+  lastPINB = pinb;
 }
