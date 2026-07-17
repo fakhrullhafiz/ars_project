@@ -54,7 +54,12 @@ const float COUNTS_PER_CM = 2.297;
 // 180/255 (~70%) matches the confirmed 2S battery: 6.0V motor rating / 8.4V
 // full-charge pack voltage is ~71%. See motor_control.ino and CLAUDE.md for
 // the full reasoning -- do not raise further without motor temp testing.
-const int MAX_PWM = 180;  // out of 255 (~70%)
+// TEMPORARY: dropped to 100 for the COUNTS_PER_CM sanity check (F100 test,
+// 2026-07-17) -- this sketch has no braking, it just cuts power on target
+// reached and coasts to a stop, so a slower run keeps coasting overshoot
+// small and makes the true calibration error easier to read cleanly.
+// Restore to MAX_PWM = 180 once the sanity check is done.
+const int MAX_PWM = 100;  // out of 255 -- TEMP for calibration sanity check, revert to 180 after
 const int MIN_PWM = 60;   // below this the motor may not overcome static friction
 
 // ---- Motor pins -- must match motor_control.ino exactly ----
