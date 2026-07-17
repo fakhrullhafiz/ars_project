@@ -74,11 +74,10 @@ all 4 corners would fit on D18–D21.
 - ⚠️ **Encoder VCC (blue) goes to the Mega 5V bus, never to the lever-nut
   block.** The block outputs raw battery voltage (7.4–8.4V) — that will fry
   the encoder's Hall-sensor electronics, which expect 5V logic.
-- 🚧 **Firmware note:** `main_robot.ino` currently only reads FL's counts (one
-  `volatile long encoderCount`, one ISR, A=D18/B=D19). Extending it to all 4
-  wheels needs 4 separate counters/ISRs and, for RL/RR, the same PCINT0
-  handling `encoder_test.ino` uses — a firmware task, not a blocker to wiring
-  (which is done).
+- ✅ **Firmware note:** `main_robot.ino` now reads all 4 wheels' counts (ported
+  from `encoder_test.ino`, same PCINT0 handling for RL/RR). Only FL's count
+  drives the `F<cm>` stop condition — the other 3 are diagnostics-only, since
+  `COUNTS_PER_CM` was calibrated against FL alone.
 
 ### ⑤ Arduino power / comms
 - ⬜ Mega **USB → SBC (or laptop)** — powers the Mega and carries the serial
