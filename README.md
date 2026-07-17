@@ -11,11 +11,11 @@ Full project plan, timeline, and task breakdown live in Google Drive (see [Where
 
 ## Team & ownership
 
-| Person | Owns | Folder(s) |
-|---|---|---|
-| Person A | Mechanical, power, 3D printing, wiring | *(no code folder — CAD lives in Drive)* |
-| Person B | Low-level motion control | `arduino/` |
-| Person C | Perception, navigation, ROS2 | `ros2_workspace/` |
+| Person | Name | Owns | Folder(s) |
+|---|---|---|---|
+| Person A | Haikal | Mechanical, power, 3D printing, wiring | *(no code folder — CAD lives in Drive)* |
+| Person B | Pekol (fakhrullhafiz) | Low-level motion control | `arduino/` |
+| Person C | Tsaqif | Perception, navigation, ROS2 | `ros2_workspace/` |
 
 Each folder is owned by one person day-to-day, but anyone can open a PR against any folder — see [Branching](#branching--workflow) below.
 
