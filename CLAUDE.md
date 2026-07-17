@@ -112,7 +112,11 @@ No tests exist yet — `package.xml`'s `ament_flake8`/`ament_pep257`/`pytest` en
 ## Known open questions (update as resolved)
 
 - [x] Battery confirmed: 2S LiPo, 7.4V nominal / 8.4V full charge, XT60 (see Critical hardware facts). Supersedes the earlier 3S/4S placeholder. Pack health still unverified.
-- [ ] Confirmed Axiomtek SBC CPU variant (i3/i5/i7/Celeron).
+- [ ] Confirmed Axiomtek SBC CPU variant (i3/i5/i7/Celeron) — matters for two
+  reasons ahead of Arduino+SBC integration: (a) confirm it's x86_64 like the
+  dev VM, not ARM, since that determines whether prebuilt ROS2 Jazzy packages
+  install the same way; (b) if it's a low-end variant (Celeron), worth knowing
+  before relying on it for LIDAR + future Nav2/SLAM workloads.
 - [x] ROS2 distro — Jazzy (`obstacle_detector_node.py` hardcodes the `ros-jazzy-rplidar-ros` apt package; this dev machine also has `ROS_DISTRO=jazzy`). Flag it if a teammate's machine has Humble instead.
 - [x] Serial protocol between Arduino and the obstacle-avoidance node — defined in `main_robot.ino`'s header: `F<distance_cm>`, `S`, `G` (see Architecture above).
 
