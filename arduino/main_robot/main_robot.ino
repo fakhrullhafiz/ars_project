@@ -42,8 +42,13 @@
     for later, not implemented here yet.
 */
 
-// ---- Calibration -- REPLACE with your measured value from encoder_test.ino ----
-const float COUNTS_PER_CM = 20.0;  // PLACEHOLDER -- recalibrate before trusting distances
+// ---- Calibration -- measured via encoder_test.ino (2026-07-17) ----
+// Front-left wheel, 1 hand-rotated revolution = 70 counts (magnitude; FL reads
+// negative on forward per the documented sign convention, doesn't matter here
+// since handleSerialCommands() compares abs(encoderCount)). Wheel diameter
+// 97mm -> circumference = pi * 97mm =~ 304.73mm = 30.473cm.
+// COUNTS_PER_CM = 70 / 30.473 =~ 2.297
+const float COUNTS_PER_CM = 2.297;
 
 // ---- Safety PWM ceiling -- keep in sync with motor_control.ino ----
 // 180/255 (~70%) matches the confirmed 2S battery: 6.0V motor rating / 8.4V
