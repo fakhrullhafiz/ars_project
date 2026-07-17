@@ -83,11 +83,12 @@ all 4 corners would fit on D18–D21.
 - ⬜ Mega **USB → SBC (or laptop)** — powers the Mega and carries the serial
   protocol (`F<cm>` / `S` / `G`). **The Mega is NOT powered from the block.**
 
-### 🚫 Blocked (not a wiring task)
-- Motor spin-**direction** verification (forward/reverse/strafe/rotate) waits on
-  the mechanical shaft-to-wheel coupling fix (motor shaft dia. vs wheel bore) —
-  Person A / Haikal's scope. Confirm directions with wheels on, then swap OUT
-  leads for any wrong wheel.
+### Motor spin-direction — resolved
+- ✅ **Motor spin-direction verified (2026-07-17)** — forward/reverse/strafe/
+  rotate all confirmed correct per-wheel via `motor_control.ino`'s single-motor
+  ID test and combined movement keys, plus correct motion on the ground. No OUT
+  lead swaps were needed. This supersedes the earlier note here that direction
+  verification was blocked on a mechanical shaft-to-wheel coupling fix.
 
 ## Suggested arrange order
 1. **Common ground first** (③) — bond Mega GND to the orange rail, confirm continuity.
