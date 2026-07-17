@@ -34,12 +34,12 @@
 */
 
 // ---- Tunable safety ceiling — see comment block above before changing ----
-// TEMPORARY: lowered from 180 to 80 for visual direction-check testing only —
-// slow enough to watch each wheel/gear turn and confirm it matches the
-// assigned rotation. Lower duty cycle is strictly safer for the motors than
-// 180, not riskier. Restore to MAX_PWM = 180 once direction is confirmed;
-// don't leave this in place for real driving or thermal testing.
-const int MAX_PWM = 80;   // out of 255 (~35%) — TEMP for direction-check, revert to 180 after
+// 180/255 ≈ 70% duty, matching the 6.0V motor rating against the 8.4V-max
+// 2S pack (see PWM CEILING comment above). Was temporarily 80 for the
+// spin-direction check (2026-07-17, all 4 wheels + strafe/rotate confirmed
+// correct); restored now that direction is confirmed. Still pending a
+// thermal check per motor before trusting 180 for sustained driving.
+const int MAX_PWM = 180;  // out of 255 (~70%)
 const int MIN_PWM = 60;   // below this the motor may not overcome static friction
 
 // ---- Diagnostic/bring-up only: slow single-motor test speed ----
