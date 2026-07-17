@@ -29,29 +29,34 @@ If asked to work on something from a higher layer, check whether the layer below
 
 - **Motors (JGB37-520):** rated 6.0V DC. Integrated magnetic encoder on a 6-pin JST connector: red = motor+, white = motor−, blue = encoder VCC, black = encoder GND, yellow = encoder phase A, green = encoder phase B.
 - **Battery: 2S LiPo, 7.4V nominal / 8.4V full charge, XT60 connector. Confirmed** — supersedes the earlier "3S or 4S, TBD" placeholder that was here. If any code, comment, or teammate reference still assumes 3S/4S, that's now stale (see the MAX_PWM conflict noted below).
+- **Battery power distribution (lever-nut block, 2026-07-02):** the XT60 battery lead feeds a high-current **2-in / 4-out lever-nut distribution block** — this is the sanctioned fan-out for battery power and **replaces the earlier hand-made-splitter idea; no breadboard is anywhere on the power path.** The block has two internally-isolated bus bars: **blue levers = battery positive rail, orange levers = battery negative rail.** Two parallel output channels:
+  - **Channel 1** → driver 1 VCC/GND — front motors (FL + FR).
+  - **Channel 2** → driver 2 VCC/GND — rear motors (RL + RR).
+  - The **SZDULI 19V converter** (SBC power) splices into one of the block's high-current output lines — electrically a parallel tap on the same battery rail, *not* downstream of a driver.
+  Implications for hardware-init code, pinning, and troubleshooting: (a) the block only *distributes*, it does not regulate — every output sits at raw battery voltage, so the `MAX_PWM` voltage-mismatch reasoning below is unchanged. (b) **The Arduino Mega is NOT powered from this block** — it runs off USB; the driver *logic* headers (5V+/GND) are fed from the Mega's 5V/GND, a **separate power domain** from the driver VCC/GND *motor-power* terminals fed here — keep the two straight when diagnosing. (c) **Common ground:** the Mega GND must still tie to the orange (battery-negative) rail so motor-control signals share a reference with the drivers. (d) Both drivers *and* the SBC converter now draw through the single XT60 input — confirm the input lever's current rating covers the combined load, and note that motor stall current can momentarily sag the shared rail (an `S` emergency stop, which zeroes PWM, also relieves it).
 - **Driver (MC33886VW dual H-bridge, x2 modules):** 6-pin logic header per module (GND, IN1–IN4, 5V+) plus 3 screw-terminal pairs (OUT1/2, VCC/GND, OUT3/4). No separate PWM/enable pin — speed is set via `analogWrite()` directly on the IN pins (see `setMotor()` in `motor_control.ino`).
 - **This is a voltage mismatch by design, not a bug.** The MC33886VW driver passes battery voltage straight through to the motors — it does not regulate it down. The fix is software: cap PWM duty cycle rather than running motors at full duty cycle. **With the confirmed 2S battery (8.4V max), the correct ceiling is `MAX_PWM = 180` out of 255 (~70%, since 6.0V / 8.4V ≈ 71%)** — tune down further only if real motor-temperature testing says so. **Never write or suggest motor control code that defaults to 100% PWM duty cycle** without an explicit, deliberate reason — this risks motor damage given the voltage mismatch.
   - `arduino/motor_control/motor_control.ino` and `arduino/main_robot/main_robot.ino` both set `MAX_PWM = 180` (2026-07-01, confirmed with user) — **not yet validated on hardware.** Treat 180 as the theoretical ceiling for the confirmed 2S pack, not a proven-safe running value, until someone has actually run the motors and checked casing temperature after a multi-minute test.
-- **SZDULI Y2-K101908 converter:** steps battery voltage to a clean 19V rail for the Axiomtek SBC, rated up to 152W. Not a bottleneck — don't spend effort here unless explicitly asked.
+- **SZDULI Y2-K101908 converter:** steps battery voltage to a clean 19V rail for the Axiomtek SBC, rated up to 152W. Draws its input from one of the distribution block's output lines (see the power-distribution bullet above). Not a bottleneck — don't spend effort here unless explicitly asked.
 - **RPLIDAR A1 pinout:** VCC (+5V), GND, TX (3.3V TTL), RX (3.3V TTL), M_EN (motor enable/PWM).
-- **Arduino Mega 2560:** ATmega2560, 5V logic, 54 digital I/O pins, hardware Serial0–3, I2C on pins 20/21. Motor IN pins on D2–D9 (PWM-capable); front-left encoder phase A on D18 (interrupt-capable), phase B on D19.
+- **Arduino Mega 2560:** ATmega2560, 5V logic, 54 digital I/O pins, hardware Serial0–3, I2C on pins 20/21. Motor IN pins on D2–D9 (PWM-capable); only 6 pins support true hardware interrupts (D2, D3, D18, D19, D20, D21) — see the 4-encoder pin plan below for how all 4 encoders are allocated across those plus the Mega's PCINT0 group.
 
 If any of these facts appear to conflict with something in code or in a teammate's comment, flag the discrepancy to the user rather than silently picking one.
 
 ## Current status — update as things actually change, don't let this go stale
 
-- **Full rewire completed 2026-07-16:** all 4 motors and all 4 encoders are now physically wired (breadboard used for logic-side 5V/GND fan-out only; battery power to both driver modules is a soldered/twisted splice with heat shrink, not breadboard). This supersedes the earlier "rear pair blocked, needs a splitter" note below — the splitter question is resolved. **Wiring is confirmed done; hardware behavior (spin direction, thermal, encoder counts) is not yet re-tested after this rewire** — do not assume prior confirmations (e.g. front-left motor thermal check) still hold until re-verified.
+- **Full rewire completed 2026-07-16:** all 4 motors and all 4 encoders are now physically wired (breadboard used for logic-side 5V/GND fan-out only; battery power to both driver modules is a soldered/twisted splice with heat shrink, not breadboard). This supersedes the earlier "rear pair blocked, needs a splitter" note and the lever-nut distribution block note above — both are superseded by whichever wiring is physically in place now; treat `encoder_test.ino` and this section as ground truth. **Wiring is confirmed done; hardware behavior (spin direction, thermal, encoder counts) is not yet re-tested after this rewire** — do not assume prior confirmations (e.g. front-left motor thermal check) still hold until re-verified.
   - Front-left motor: D2/D3, driver 1 channel A. Previously confirmed working (2026-07-01) at `MAX_PWM=180`, but re-check after the rewire before trusting that result.
   - Front-right motor: D4/D5, driver 1 channel B.
   - Rear-left motor: D6/D7, driver 2 channel A.
   - Rear-right motor: D8/D9, driver 2 channel B.
-  - All 4 pending a fresh direction + thermal test via `motor_control.ino`.
-- Encoders, all 4 now wired:
-  - Front-left: D18/D19 (hardware interrupt).
-  - Front-right: D20/D21 (hardware interrupt).
-  - Rear-left: D11/D24 (pin-change interrupt — D11 is not a hardware-interrupt pin; see below).
-  - Rear-right: D12/D25 (pin-change interrupt).
-  - Only 6 Mega pins (2, 3, 18, 19, 20, 21) support true hardware interrupts, and D2/D3 are taken by the front-left motor, so rear encoders use the Mega's PCINT0 group instead (raw AVR registers, not a library). `encoder_test.ino` now implements this for all 4 wheels; `main_robot.ino` still only tracks the front-left encoder (unchanged, sufficient for current Layer 1 scope).
+  - All 4 pending a fresh direction + thermal test via `motor_control.ino`. `MAX_PWM` is temporarily lowered to 80 in `motor_control.ino` for this visual direction check — see comment there; don't revert to 180 until direction is confirmed.
+- **4-encoder pin plan is the real PCINT-based wiring, not the earlier "phase A only" plan.** Only 6 Mega pins (D2, D3, D18, D19, D20, D21) support true hardware interrupts, and D2/D3 are taken by the front-left motor, so only FL and FR get full interrupt-pin pairs; RL and RR use the Mega's PCINT0 group instead (raw AVR registers, not a library — see `encoder_test.ino`). This corrects the earlier "phase A only needs a true interrupt pin" assumption (D18-D21 phase A / D22-D25 phase B), which turned out not to match how the board's interrupt pins actually needed to be allocated. All 4 encoders now wired:
+  - Front-left: A=D18 / B=D19 (hardware interrupt).
+  - Front-right: A=D20 / B=D21 (hardware interrupt).
+  - Rear-left: A=D11 / B=D24 (pin-change interrupt — D11 is not a hardware-interrupt pin).
+  - Rear-right: A=D12 / B=D25 (pin-change interrupt).
+  - `encoder_test.ino` implements this for all 4 wheels; `main_robot.ino` still only tracks the front-left encoder (unchanged, sufficient for current Layer 1 scope).
 - `COUNTS_PER_CM` in `main_robot.ino` is still the placeholder value (20.0), pending real calibration via `encoder_test.ino`.
 - `MAX_PWM = 180` in both Arduino sketches was validated on the front-left motor pre-rewire; treat that as unconfirmed again until re-tested. Front-right and rear pair have never had their own thermal check.
 

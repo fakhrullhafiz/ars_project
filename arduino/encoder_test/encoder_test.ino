@@ -15,7 +15,9 @@
     FR: phase A -> D20 (hw interrupt), phase B -> D21
     RL: phase A -> D11 (pin-change interrupt), phase B -> D24
     RR: phase A -> D12 (pin-change interrupt), phase B -> D25
-    All 4: encoder VCC -> +5V, GND -> common ground.
+    All 4: encoder VCC -> +5V (NOT the lever-nut battery block, that's raw
+    battery voltage and will fry the encoder's Hall-sensor electronics),
+    GND -> common ground (shared with Mega GND / driver GND / battery- rail).
 
   Only D2, D3, D18, D19, D20, D21 are true hardware-interrupt pins on the
   Mega, and D2/D3 are already taken by the FL motor. FL/FR encoders use
