@@ -57,6 +57,8 @@ If any of these facts appear to conflict with something in code or in a teammate
   - Rear-left: A=D11 / B=D24 (pin-change interrupt — D11 is not a hardware-interrupt pin).
   - Rear-right: A=D12 / B=D25 (pin-change interrupt).
   - `encoder_test.ino` implements this for all 4 wheels; `main_robot.ino` still only tracks the front-left encoder (unchanged, sufficient for current Layer 1 scope).
+- **All 4 encoders confirmed reading correctly via `encoder_test.ino` (2026-07-17).** Rear-right initially read nothing at all — its phase-A (yellow) lead was physically on D10 instead of D12; reseating it on D12 fixed it. If any encoder ever goes silent again, check the physical connector/pin before suspecting the ISR code, since the PCINT0 handler is shared and proven correct by the other 3 wheels working.
+  - **Sign convention confirmed and expected, not a bug:** right-side wheels (FR, RR) count `++` on forward rotation / `--` on reverse; left-side wheels (FL, RL) count the opposite (`--` forward / `++` reverse). This is the normal result of mecanum drivetrains mounting left- and right-side motors mirrored, so it's not a wiring mistake to chase — but it does mean any future firmware that turns these counts into distance/direction (e.g. extending `main_robot.ino` past FL-only) must apply a per-side sign correction so "drive forward" reads positive on all 4 wheels.
 - `COUNTS_PER_CM` in `main_robot.ino` is still the placeholder value (20.0), pending real calibration via `encoder_test.ino`.
 - `MAX_PWM = 180` in both Arduino sketches was validated on the front-left motor pre-rewire; treat that as unconfirmed again until re-tested. Front-right and rear pair have never had their own thermal check.
 
