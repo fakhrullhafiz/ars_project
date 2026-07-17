@@ -42,13 +42,23 @@
     for later, not implemented here yet.
 */
 
-// ---- Calibration -- REPLACE with your measured value from encoder_test.ino ----
-const float COUNTS_PER_CM = 20.0;  // PLACEHOLDER -- recalibrate before trusting distances
+// ---- Calibration -- measured via encoder_test.ino (2026-07-17) ----
+// Front-left wheel, 1 hand-rotated revolution = 70 counts (magnitude; FL reads
+// negative on forward per the documented sign convention, doesn't matter here
+// since handleSerialCommands() compares abs(encoderCount)). Wheel diameter
+// 97mm -> circumference = pi * 97mm =~ 304.73mm = 30.473cm.
+// COUNTS_PER_CM = 70 / 30.473 =~ 2.297
+const float COUNTS_PER_CM = 2.297;
 
 // ---- Safety PWM ceiling -- keep in sync with motor_control.ino ----
 // 180/255 (~70%) matches the confirmed 2S battery: 6.0V motor rating / 8.4V
 // full-charge pack voltage is ~71%. See motor_control.ino and CLAUDE.md for
 // the full reasoning -- do not raise further without motor temp testing.
+// Was temporarily 100 for the COUNTS_PER_CM sanity check (F100 test,
+// 2026-07-17) -- that test passed (actual stop landed close to the 100cm
+// mark), so restored to 180. Expect somewhat more coasting overshoot at
+// this speed than what was observed during the slower sanity check, since
+// this sketch has no braking (see setup()/loop() comments).
 const int MAX_PWM = 180;  // out of 255 (~70%)
 const int MIN_PWM = 60;   // below this the motor may not overcome static friction
 
