@@ -77,7 +77,7 @@ See `CLAUDE.md` for fuller project context if working with Claude Code.
 
 Update this section weekly so anyone opening the repo can see where things stand at a glance.
 
-- **Week 1:** _(update here)_
-- **Week 2:** _(update here)_
-- **Week 3:** _(update here)_
+- **Week 1:** Repo scaffolded (README, CLAUDE.md, folder layout). Starter sketches added: `motor_control.ino`, `encoder_test.ino`, `main_robot.ino`, and the `obstacle_avoidance` ROS2 package. Battery confirmed as 2S LiPo (7.4V nominal/8.4V full), `MAX_PWM` set to 180. Single-motor ID test mode and `arduino/WIRING.md` bench reference added.
+- **Week 2:** No code changes this week — team focus was elsewhere (mechanical/CAD, planning). Encoder rewire and 4-wheel integration work picked up mid-July.
+- **Week 3:** Layers 0–1 (open-loop motor control + closed-loop encoder driving) fully validated on hardware — all 4 wheels, `MAX_PWM=180` thermal-checked, `COUNTS_PER_CM` calibrated (see CLAUDE.md). Layer 2 (RPLIDAR obstacle-stop) is written but not yet rehearsed on real hardware — blocked on a LIDAR/RealSense setup issue, to be resolved in the lab. Next session: unblock sensors, rehearse Layer 2 end-to-end, then begin Arduino→Axiomtek SBC integration. Step-by-step plan in [`NEXT_SESSION.md`](NEXT_SESSION.md).
 - **Week 4:** _(update here)_
