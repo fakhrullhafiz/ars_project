@@ -4,12 +4,12 @@ obstacle_detector_node.py
 ------------------------------------------------------------------------------
 Layer 2 stretch goal node.
 
-Subscribes to /scan (sensor_msgs/LaserScan), published by the standard
-rplidar_ros driver package. Does NOT talk to the RPLIDAR's serial port
-directly — that's already handled by rplidar_ros, which is a separate,
-well-tested package you should install rather than reimplement:
-
-    sudo apt install ros-jazzy-rplidar-ros
+Subscribes to /scan (sensor_msgs/LaserScan), published by whichever LIDAR
+driver is running (currently ydlidar_ros2_driver, vendored in this
+workspace at ros2_workspace/src/ydlidar_ros2_driver -- see its launch
+file). This node has no brand-specific dependency on the driver; it only
+needs a standard /scan topic. Does NOT talk to the LIDAR's serial port
+directly — that's the driver's job, brought up separately.
 
 Bring up the LIDAR driver first and confirm `ros2 topic echo /scan` shows
 real data BEFORE running this node — debug the sensor in isolation before

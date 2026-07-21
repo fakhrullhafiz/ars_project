@@ -4,9 +4,11 @@
   <name>obstacle_avoidance</name>
   <version>0.1.0</version>
   <description>
-    Layer 2 stretch goal: reads RPLIDAR A1 scan data, detects obstacles within
-    a configurable stop threshold in the robot's forward path, and sends a
-    stop/go serial command to the Arduino Mega running main_robot.ino.
+    Layer 2 stretch goal: reads LIDAR scan data (published on /scan by
+    whichever driver is running -- see ydlidar_ros2_driver in this
+    workspace), detects obstacles within a configurable stop threshold in
+    the robot's forward path, and sends a stop/go serial command to the
+    Arduino Mega running main_robot.ino.
     See CLAUDE.md and the project plan for the full priority-layer context.
   </description>
   <maintainer email="fakhrulhafiz99@gmail.com">fakhrullhafiz</maintainer>

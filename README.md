@@ -1,6 +1,6 @@
 # ars_project
 
-Autonomous Mobile Robot (AMR) — 4-week group project. Mecanum-wheel platform with Arduino-level motion control and RPLIDAR-based obstacle avoidance, with an optional ROS2/SBC stretch layer.
+Autonomous Mobile Robot (AMR) — 4-week group project. Mecanum-wheel platform with Arduino-level motion control and YDLidar-based obstacle avoidance, with an optional ROS2/SBC stretch layer.
 
 **Baseline goal:** robot moves reliably from Point A to Point B.
 **Stretch goal:** LIDAR-based obstacle avoidance, and (time permitting) ROS2 Nav2 / RealSense integration.
@@ -79,5 +79,5 @@ Update this section weekly so anyone opening the repo can see where things stand
 
 - **Week 1:** Repo scaffolded (README, CLAUDE.md, folder layout). Starter sketches added: `motor_control.ino`, `encoder_test.ino`, `main_robot.ino`, and the `obstacle_avoidance` ROS2 package. Battery confirmed as 2S LiPo (7.4V nominal/8.4V full), `MAX_PWM` set to 180. Single-motor ID test mode and `arduino/WIRING.md` bench reference added.
 - **Week 2:** No code changes this week — team focus was elsewhere (mechanical/CAD, planning). Encoder rewire and 4-wheel integration work picked up mid-July.
-- **Week 3:** Layers 0–1 (open-loop motor control + closed-loop encoder driving) fully validated on hardware — all 4 wheels, `MAX_PWM=180` thermal-checked, `COUNTS_PER_CM` calibrated (see CLAUDE.md). Layer 2 (RPLIDAR obstacle-stop) is written but not yet rehearsed on real hardware — blocked on a LIDAR/RealSense setup issue, to be resolved in the lab. Next session: unblock sensors, rehearse Layer 2 end-to-end, then begin Arduino→Axiomtek SBC integration. Step-by-step plan in [`NEXT_SESSION.md`](NEXT_SESSION.md).
+- **Week 3:** Layers 0–1 (open-loop motor control + closed-loop encoder driving) fully validated on hardware — all 4 wheels, `MAX_PWM=180` thermal-checked, `COUNTS_PER_CM` calibrated (see CLAUDE.md). SBC bring-up underway: RealSense and the LIDAR (turned out to be a YDLidar, not RPLIDAR — corrected throughout this repo 2026-07-21) both confirmed producing real data. `obstacle_avoidance`'s stop logic is written but not yet rehearsed end-to-end against live scan data. A repo-sync mishap on the SBC (see CLAUDE.md "Current status") produced a messy branch that was NOT merged to `main`; the useful part (vendored `ydlidar_ros2_driver`) was cleanly re-added on `perception-ydlidar` instead. Next: get that branch merged, rehearse Layer 2 end-to-end, then Arduino→SBC integration. See [`NEXT_SESSION.md`](NEXT_SESSION.md).
 - **Week 4:** _(update here)_

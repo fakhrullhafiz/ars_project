@@ -1,0 +1,15 @@
+ydlidar_ros2_driver_node:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    frame_id: laser_frame
+    baudrate: 115200
+    lidar_type: 1        # TRIANGLE for X2
+    device_type: 0        # YDLIDAR_TYPE_SERIAL
+    sample_rate: 3
+    isSingleChannel: true # X2 is single-channel — important!
+    intensity: false
+    angle_max: 180.0
+    angle_min: -180.0
+    range_max: 8.0
+    range_min: 0.10
+    frequency: 6.0
