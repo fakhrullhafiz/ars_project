@@ -28,6 +28,7 @@ setup(
     entry_points={
         'console_scripts': [
             'encoder_joint_state = ars_description.encoder_joint_state_node:main',
+            'teleop_bridge = ars_description.teleop_bridge_node:main',
         ],
     },
 )
