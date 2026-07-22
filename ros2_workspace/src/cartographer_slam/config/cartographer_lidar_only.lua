@@ -58,19 +58,42 @@ TRAJECTORY_BUILDER_2D.min_range = 0.15
 TRAJECTORY_BUILDER_2D.max_range = 8.0  -- matches the LIDAR range ceiling used in slam_toolbox_lidar_only.yaml
 TRAJECTORY_BUILDER_2D.missing_data_ray_length = 8.0
 TRAJECTORY_BUILDER_2D.use_online_correlative_scan_matching = true
-TRAJECTORY_BUILDER_2D.motion_filter.max_angle_radians = math.rad(0.2)
+-- FIXED 2026-07-23: this was math.rad(0.2) -- 0.2 DEGREES, an almost
+-- certain units mistake (math.rad() converts degrees->radians, so this is
+-- ~20-100x tighter than the 1-20 deg typical for this setting). That tiny
+-- a threshold means nearly every scan's noise-level angular jitter exceeds
+-- it, so the motion filter -- which is supposed to skip inserting redundant
+-- pose-graph nodes when the robot hasn't really moved -- was effectively
+-- disabled, inserting a "new" node on almost every scan. This doesn't
+-- directly cause the runaway-pose bug fixed above (that's local tracking,
+-- not the pose-graph backend), but it adds needless node density/CPU load
+-- for no benefit. 1 deg is a standard, conservative value for this field.
+TRAJECTORY_BUILDER_2D.motion_filter.max_angle_radians = math.rad(1.)
 
--- Widened from Cartographer's defaults (angular 20 deg, linear 0.1 m) after a
--- real test (2026-07-22): rotating the robot by hand caused the map to "lose"
--- the rotation and snap back once turning stopped. Root cause is the LIDAR's
--- slow ~3.25 Hz scan rate (see CLAUDE.md) -- with no odometry/IMU to seed
--- each match, any rotation faster than roughly (angular_search_window /
--- time_between_scans) exceeds what the correlative matcher searches, so it
--- loses tracking. Wider windows search more per scan (more CPU) and given
--- this used to be the default, hand-rotating a chassis is very easy to move
--- faster than 65 deg/s -- deliberately generous, not just nudged.
-TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.angular_search_window = math.rad(45.)
-TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.linear_search_window = 0.2
+-- REVISED 2026-07-23: the 45 deg / 0.2 m widening below (from Cartographer's
+-- defaults of ~20 deg / 0.1 m) fixed the 2026-07-22 hand-rotation tracking
+-- loss, but a room-mapping test the same day showed the tradeoff cuts the
+-- other way -- while stationary in a long, feature-poor corridor-like scan,
+-- the wider search window let the correlative matcher alias onto a wrong
+-- but higher-scoring offset, and with no odometry/IMU to catch the mistake,
+-- the constant-velocity extrapolator compounded that single bad match every
+-- subsequent scan, producing a runaway pose (observed: map coordinates in
+-- the hundreds of meters after ~1 minute stationary). A wide search window
+-- trades rotation-tracking robustness for aliasing risk in low-feature
+-- geometry -- both are real failure modes of odometry-free scan matching,
+-- not fixable by search-window size alone.
+--
+-- Compromise, NOT re-validated on hardware yet: 30 deg / 0.15 m. At the
+-- LIDAR's ~3.25 Hz scan rate (~0.31 s between scans), 30 deg still tracks
+-- roughly (30 / 0.31) =~ 97 deg/s of rotation -- comfortably above normal
+-- hand-turning speed, so the 2026-07-22 fix should still hold -- while
+-- cutting the search area (and therefore aliasing opportunity) versus 45
+-- deg/0.2 m. If tracking loss on fast turns returns, widen angular back up
+-- before touching anything else; if runaway drift returns, narrow further
+-- and/or avoid mapping long feature-poor corridors with this odometry-free
+-- setup.
+TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.angular_search_window = math.rad(30.)
+TRAJECTORY_BUILDER_2D.real_time_correlative_scan_matcher.linear_search_window = 0.15
 
 POSE_GRAPH.optimize_every_n_nodes = 20
 
