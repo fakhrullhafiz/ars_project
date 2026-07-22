@@ -1,0 +1,45 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+    # Without this the controller_manager stamps mecanum_drive_controller's
+    # published /odometry with wall time (actually seen: a zero stamp before
+    # /clock is up), while the sim LIDAR's /scan is stamped in sim time.
+    # Cartographer's strictly time-ordered sensor queue then stalls forever
+    # ("Queue waiting for data: (0, odom)") because it can never align a
+    # zero/wall-stamped odom against a sim-time scan. Only relevant in sim.
+    use_sim_time: true
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    mecanum_drive_controller:
+      type: mecanum_drive_controller/MecanumDriveController
+
+mecanum_drive_controller:
+  ros__parameters:
+    reference_timeout: 0.5
+    front_left_wheel_command_joint_name: front_left_wheel_joint
+    front_right_wheel_command_joint_name: front_right_wheel_joint
+    rear_left_wheel_command_joint_name: rear_left_wheel_joint
+    rear_right_wheel_command_joint_name: rear_right_wheel_joint
+
+    # Real values from wheel_odometry_node.py (WHEELBASE_M=0.142,
+    # TRACK_WIDTH_M=0.195) and the 97mm wheel diameter used in
+    # encoder_test.ino's COUNTS_PER_CM derivation -- NOT placeholders,
+    # unlike the chassis box in the URDF. wheels_radius = 0.097/2.
+    # sum_of_robot_center_projection_on_X_Y_axis = half_wheelbase + half_track
+    # = 0.071 + 0.0975, matching the lx+ly term in wheel_odometry_node.py's
+    # own mecanum kinematics (omega = ... / (4 * (LX + LY))).
+    kinematics:
+      base_frame_offset: { x: 0.0, y: 0.0, theta: 0.0 }
+      wheels_radius: 0.0485
+      sum_of_robot_center_projection_on_X_Y_axis: 0.1685
+
+    base_frame_id: base_link
+    odom_frame_id: odom
+    # Cartographer's own config (cartographer_lidar_only.lua) already sets
+    # provide_odom_frame=true and publishes odom->base_link itself -- two
+    # publishers of the same TF edge would conflict, so this controller's
+    # odom is left as a topic only (useful for comparing against
+    # Cartographer's estimate) and does NOT also broadcast the TF.
+    enable_odom_tf: false

@@ -1,0 +1,188 @@
+<?xml version="1.0"?>
+<!--
+  mecanum_robot.urdf.xacro
+
+  Simplified simulation model of the real robot, for testing whether
+  LIDAR only Cartographer SLAM (see cartographer_slam package) works at all,
+  decoupled from the real hardware's USB/power issues. NOT a faithful
+  physical model.
+
+  REAL values, pulled directly from the actual codebase (not guessed):
+    - WHEELBASE_M / TRACK_WIDTH_M: wheel_odometry_node.py, measured 2026-07-22
+    - Wheel diameter (97mm): encoder_test.ino's COUNTS_PER_CM derivation
+    - laser_frame mount (0, 0, 0.02): ydlidar_ros2_driver's ydlidar_launch.py
+      static_transform_publisher, reused exactly, not re-guessed.
+
+  PLACEHOLDER values (chassis box size, wheel width, all masses/inertias):
+    sized to visually contain the real wheel footprint plus a margin, not
+    measured against the real chassis. Doesn't affect whether SLAM works,
+    only affects what the robot looks like and how it collides with walls.
+    See CLAUDE.md's Documentation/robotics_component_documentation.md note
+    if real chassis dimensions are ever needed here.
+-->
+<robot name="mecanum_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="controllers_file" default=""/>
+
+  <!-- Real geometry (see header) -->
+  <xacro:property name="wheelbase" value="0.142"/>
+  <xacro:property name="track_width" value="0.195"/>
+  <xacro:property name="wheel_radius" value="0.0485"/>  <!-- 97mm diameter / 2 -->
+
+  <!-- Placeholder geometry (see header) -->
+  <xacro:property name="wheel_width" value="0.04"/>
+  <xacro:property name="chassis_length" value="0.24"/>
+  <xacro:property name="chassis_width" value="0.24"/>
+  <xacro:property name="chassis_height" value="0.10"/>
+  <xacro:property name="chassis_mass" value="2.0"/>
+  <xacro:property name="wheel_mass" value="0.15"/>
+  <xacro:property name="ground_clearance" value="0.01"/>
+
+  <xacro:property name="half_wb" value="${wheelbase / 2.0}"/>
+  <xacro:property name="half_tw" value="${track_width / 2.0}"/>
+
+  <material name="chassis_grey">
+    <color rgba="0.3 0.3 0.3 1.0"/>
+  </material>
+  <material name="wheel_black">
+    <color rgba="0.05 0.05 0.05 1.0"/>
+  </material>
+
+  <!-- base_link origin sits at wheel-axle height, so wheel cylinders
+       (centered on base_link's own z=0) touch the ground correctly. -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${ground_clearance + chassis_height / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="chassis_grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${ground_clearance + chassis_height / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="${chassis_mass}"/>
+      <origin xyz="0 0 ${ground_clearance + chassis_height / 2.0}" rpy="0 0 0"/>
+      <inertia ixx="0.02" ixy="0" ixz="0" iyy="0.03" iyz="0" izz="0.04"/>
+    </inertial>
+  </link>
+
+  <!-- Mecanum wheel macro.
+       Rollers aren't modeled: visual/collision is a plain cylinder, same
+       simplification used by most ROS2 mecanum sim examples. The actual
+       mecanum motion comes from mecanum_drive_controller's kinematics
+       (config/mecanum_drive_controller.yaml), not from wheel geometry. -->
+  <xacro:macro name="wheel" params="prefix x_offset y_offset">
+    <link name="${prefix}_wheel_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="${wheel_mass}"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <inertia ixx="0.0005" ixy="0" ixz="0" iyy="0.0005" iyz="0" izz="0.0008"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${prefix}_wheel_link"/>
+      <origin xyz="${x_offset} ${y_offset} 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel prefix="front_left"  x_offset="${half_wb}"  y_offset="${half_tw}"/>
+  <xacro:wheel prefix="front_right" x_offset="${half_wb}"  y_offset="${-half_tw}"/>
+  <xacro:wheel prefix="rear_left"   x_offset="${-half_wb}" y_offset="${half_tw}"/>
+  <xacro:wheel prefix="rear_right"  x_offset="${-half_wb}" y_offset="${-half_tw}"/>
+
+  <!-- LIDAR mount, reuses ydlidar_launch.py's real (0,0,0.02) static
+       transform exactly, not a separate guess. -->
+  <link name="laser_frame">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.03"/>
+      </geometry>
+      <material name="wheel_black"/>
+    </visual>
+  </link>
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_frame"/>
+    <origin xyz="0 0 0.02" rpy="0 0 0"/>
+  </joint>
+
+  <gazebo reference="laser_frame">
+    <sensor name="lidar" type="gpu_lidar">
+      <pose>0 0 0 0 0 0</pose>
+      <topic>scan</topic>
+      <update_rate>10</update_rate>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.14159</max_angle>
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.15</min>
+          <max>8.0</max>
+        </range>
+      </lidar>
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+    </sensor>
+  </gazebo>
+
+  <!-- ros2_control: 4 independently driven wheel joints, velocity
+       command/state. mecanum_drive_controller (config/) converts
+       vx/vy/omega into these 4 wheel speeds. -->
+  <ros2_control name="MecanumSimSystem" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <joint name="front_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="velocity"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="front_right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="velocity"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="rear_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="velocity"/>
+      <state_interface name="position"/>
+    </joint>
+    <joint name="rear_right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="velocity"/>
+      <state_interface name="position"/>
+    </joint>
+  </ros2_control>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg controllers_file)</parameters>
+    </plugin>
+  </gazebo>
+
+</robot>

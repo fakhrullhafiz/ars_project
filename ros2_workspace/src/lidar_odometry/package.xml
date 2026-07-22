@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>lidar_odometry</name>
+  <version>0.1.0</version>
+  <description>
+    Launch-only package: ICP (scan-matching) odometry from the YDLidar's
+    /scan, using RTAB-Map's icp_odometry node. Publishes /odom and the
+    odom-to-base_link TF, estimating motion purely from consecutive LIDAR
+    scans. Built because the chassis crack makes wheel-encoder odometry
+    (wheel_odometry package) untrustworthy (see CLAUDE.md), so a LIDAR-only
+    motion estimate is needed. This is a lighter alternative to running full
+    cartographer_slam when all you want is odometry, not a map.
+  </description>
+  <maintainer email="mohdtsaqif@gmail.com">Tsaqif</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rtabmap_odom</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

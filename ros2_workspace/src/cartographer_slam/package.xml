@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cartographer_slam</name>
+  <version>0.1.0</version>
+  <description>
+    Layer 3 stretch: launch-only package wrapping Google Cartographer for
+    genuinely odometry-free 2D LIDAR SLAM. Built after the chassis crack
+    made wheel-encoder odometry (wheel_odometry package) unreliable -- see
+    CLAUDE.md. Unlike the earlier slam_toolbox_lidar_only.yaml attempt
+    (frozen identity odom-&gt;base_link transform, which stalled slam_toolbox's
+    scan gating after one scan), Cartographer's own trajectory builder
+    estimates motion directly from consecutive LIDAR scans
+    (use_odometry = false in cartographer_lidar_only.lua), so it needs no
+    external motion source, wheel-based or otherwise.
+  </description>
+  <maintainer email="mohdtsaqif@gmail.com">Tsaqif</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>cartographer_ros</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
