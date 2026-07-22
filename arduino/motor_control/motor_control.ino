@@ -34,12 +34,17 @@
 */
 
 // ---- Tunable safety ceiling — see comment block above before changing ----
-// 180/255 ≈ 70% duty, matching the 6.0V motor rating against the 8.4V-max
-// 2S pack (see PWM CEILING comment above). Was temporarily 80 for the
-// spin-direction check (2026-07-17, all 4 wheels + strafe/rotate confirmed
-// correct); restored now that direction is confirmed. Still pending a
-// thermal check per motor before trusting 180 for sustained driving.
-const int MAX_PWM = 180;  // out of 255 (~70%)
+// RAISED TO 255 (100%), 2026-07-22, explicit user request/acknowledged
+// tradeoff -- kept in sync with main_robot.ino's identical change. Full
+// chassis assembly (SBC, RealSense, LIDAR, wiring all mounted) made the
+// robot heavy enough to bog down under sustained load at 180 even on a
+// freshly-charged battery -- a genuine torque shortfall, not battery sag.
+// This removes the voltage-safety margin entirely: motors now see full
+// battery voltage (8.4V) continuously while driving, above their 6.0V
+// rating. The 2026-07-17 thermal check validated 180 at pre-assembly
+// weight only -- it does not cover this value or this load. Watch motor
+// casing temperature closely; drop back down if anything runs hot.
+const int MAX_PWM = 255;  // out of 255 (100%) -- exceeds motor voltage rating, see above
 const int MIN_PWM = 60;   // below this the motor may not overcome static friction
 
 // ---- Diagnostic/bring-up only: slow single-motor test speed ----

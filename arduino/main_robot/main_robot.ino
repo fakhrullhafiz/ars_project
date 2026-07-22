@@ -21,6 +21,25 @@
     plain strings over serial. Do not change command characters unilaterally --
     both sides depend on this exact format.
 
+  MANUAL TELEOP (added for wheel-odometry/SLAM bring-up, 2026-07-22):
+    'w'/'s'/'a'/'d'/'q'/'e'/'x' -- forward/reverse/strafe-left/strafe-right/
+    rotate-left/rotate-right/stop, ported from motor_control.ino's confirmed
+    -correct mecanum direction logic (2026-07-17 spin-direction test). Added
+    here (not just left in motor_control.ino) because this sketch is the only
+    one that also tracks all 4 encoders -- driving with motor_control.ino
+    would give ROS2 nothing to compute odometry from. Ignored while
+    EMERGENCY_STOPPED (send 'G' first).
+
+  ENCODER TELEMETRY (added 2026-07-22, for ROS2-side wheel_odometry_node):
+    Every ~50ms this sketch prints one extra line:
+      "E,<flCount>,<frCount>,<rlCount>,<rrCount>,<millis>\n"
+    The 'E,' prefix lets a serial reader on the ROS2 side pick this line out
+    from the other human-readable status lines above. Counts are raw --
+    ROS2 side is responsible for the documented per-side sign correction and
+    the COUNTS_PER_CM conversion (see CLAUDE.md's encoder sign-convention
+    note: right-side wheels count ++ forward, left-side wheels count --
+    forward).
+
   WIRING -- motor pins match motor_control.ino exactly:
     IN pins: ~D2 through ~D9 on right-side header (PWM-capable)
 
@@ -52,15 +71,22 @@
 const float COUNTS_PER_CM = 2.297;
 
 // ---- Safety PWM ceiling -- keep in sync with motor_control.ino ----
-// 180/255 (~70%) matches the confirmed 2S battery: 6.0V motor rating / 8.4V
-// full-charge pack voltage is ~71%. See motor_control.ino and CLAUDE.md for
-// the full reasoning -- do not raise further without motor temp testing.
-// Was temporarily 100 for the COUNTS_PER_CM sanity check (F100 test,
-// 2026-07-17) -- that test passed (actual stop landed close to the 100cm
-// mark), so restored to 180. Expect somewhat more coasting overshoot at
-// this speed than what was observed during the slower sanity check, since
-// this sketch has no braking (see setup()/loop() comments).
-const int MAX_PWM = 180;  // out of 255 (~70%)
+// RAISED TO 255 (100%), 2026-07-22, explicit user request/acknowledged
+// tradeoff -- NOT the previously-validated safe value. Full chassis assembly
+// (all components mounted -- SBC, RealSense, LIDAR, wiring) made the robot
+// heavy enough that it was bogging down under sustained load at the old
+// 180 (~70%) ceiling even on a freshly-charged battery, i.e. a genuine
+// torque shortfall, not a battery-sag or startup-stiction issue.
+// 180/255 (~70%) was originally chosen to keep motor voltage at/below the
+// JGB37-520's 6.0V rating against the 8.4V-max 2S pack (6.0/8.4 ~= 71%) --
+// see CLAUDE.md's Critical Hardware Facts. Running at 255 removes that
+// margin entirely: the motors now see full battery voltage continuously
+// while driving (not just briefly), well above their rated 6.0V.
+// The 2026-07-17 thermal check that validated safe operation was done at
+// 180 and pre-full-assembly weight -- it does NOT cover this value or this
+// load. Watch motor casing temperature closely during testing; drop this
+// back down if anything runs hot.
+const int MAX_PWM = 255;  // out of 255 (100%) -- exceeds motor voltage rating, see above
 const int MIN_PWM = 60;   // below this the motor may not overcome static friction
 
 // ---- Motor pins -- must match motor_control.ino exactly ----
@@ -86,9 +112,17 @@ volatile long flCount = 0, frCount = 0, rlCount = 0, rrCount = 0;
 volatile uint8_t lastPINB = 0;
 
 // ---- State machine ----
-enum RobotState { IDLE, DRIVING, EMERGENCY_STOPPED };
+// MANUAL_DRIVE is distinct from DRIVING: DRIVING is the F<cm> auto-stop-at-
+// -target mode (see loop()'s abs(flCount) >= targetCounts check); MANUAL_DRIVE
+// is open-loop teleop with no target, added for driving around during
+// wheel-odometry/SLAM bring-up.
+enum RobotState { IDLE, DRIVING, MANUAL_DRIVE, EMERGENCY_STOPPED };
 RobotState state = IDLE;
 long targetCounts = 0;
+
+// ---- Encoder telemetry timer (see header comment) ----
+const unsigned long TELEMETRY_INTERVAL_MS = 50;
+unsigned long lastTelemetryMs = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -114,7 +148,7 @@ void setup() {
   PCMSK0 |= (1 << PCINT5) | (1 << PCINT6);
 
   stopAll();
-  Serial.println(F("main_robot ready. Commands: F<cm>  S  G"));
+  Serial.println(F("main_robot ready. Commands: F<cm>  S  G  |  teleop: w a s d q e x"));
 }
 
 void loop() {
@@ -138,6 +172,20 @@ void loop() {
     // correct for left/right drift. frCount/rlCount/rrCount above are a step
     // toward that; adjusting individual PWM based on them is still a future
     // extension, not implemented here.
+  }
+
+  unsigned long now = millis();
+  if (now - lastTelemetryMs >= TELEMETRY_INTERVAL_MS) {
+    lastTelemetryMs = now;
+    noInterrupts();
+    long fl = flCount, fr = frCount, rl = rlCount, rr = rrCount;
+    interrupts();
+    Serial.print(F("E,"));
+    Serial.print(fl); Serial.print(F(","));
+    Serial.print(fr); Serial.print(F(","));
+    Serial.print(rl); Serial.print(F(","));
+    Serial.print(rr); Serial.print(F(","));
+    Serial.println(now);
   }
 }
 
@@ -171,6 +219,21 @@ void handleSerialCommands() {
       state = IDLE;
       Serial.println(F("Cleared emergency stop, ready for new command."));
     }
+  } else if (cmd == 'w' || cmd == 's' || cmd == 'a' || cmd == 'd' ||
+             cmd == 'q' || cmd == 'e' || cmd == 'x') {
+    // Manual teleop -- ignored during EMERGENCY_STOPPED, same as 'F' should
+    // be but isn't (pre-existing gap in the F handler above, not touched
+    // here to keep this diff scoped to the teleop/telemetry addition).
+    if (state == EMERGENCY_STOPPED) return;
+    switch (cmd) {
+      case 'w': driveForward();  state = MANUAL_DRIVE; Serial.println(F("forward"));      break;
+      case 's': driveReverse();  state = MANUAL_DRIVE; Serial.println(F("reverse"));      break;
+      case 'a': strafeLeft();    state = MANUAL_DRIVE; Serial.println(F("strafe left"));  break;
+      case 'd': strafeRight();   state = MANUAL_DRIVE; Serial.println(F("strafe right")); break;
+      case 'q': rotateLeft();    state = MANUAL_DRIVE; Serial.println(F("rotate left"));  break;
+      case 'e': rotateRight();   state = MANUAL_DRIVE; Serial.println(F("rotate right")); break;
+      case 'x': stopAll();       state = IDLE;          Serial.println(F("stop"));         break;
+    }
   }
 }
 
@@ -203,6 +266,45 @@ void stopAll() {
   setMotor(FR_IN1, FR_IN2, 0);
   setMotor(RL_IN1, RL_IN2, 0);
   setMotor(RR_IN1, RR_IN2, 0);
+}
+
+// ---- Teleop-only movement functions, ported verbatim from motor_control.ino
+// (2026-07-17 spin-direction test, all 4 wheels + strafe/rotate confirmed
+// correct on hardware) -- driveForward() above already matched this pattern
+// and is reused as-is for 'w'.
+void driveReverse() {
+  setMotor(FL_IN1, FL_IN2, -MAX_PWM);
+  setMotor(FR_IN1, FR_IN2, -MAX_PWM);
+  setMotor(RL_IN1, RL_IN2, -MAX_PWM);
+  setMotor(RR_IN1, RR_IN2, -MAX_PWM);
+}
+
+void strafeLeft() {
+  setMotor(FL_IN1, FL_IN2, -MAX_PWM);
+  setMotor(FR_IN1, FR_IN2,  MAX_PWM);
+  setMotor(RL_IN1, RL_IN2,  MAX_PWM);
+  setMotor(RR_IN1, RR_IN2, -MAX_PWM);
+}
+
+void strafeRight() {
+  setMotor(FL_IN1, FL_IN2,  MAX_PWM);
+  setMotor(FR_IN1, FR_IN2, -MAX_PWM);
+  setMotor(RL_IN1, RL_IN2, -MAX_PWM);
+  setMotor(RR_IN1, RR_IN2,  MAX_PWM);
+}
+
+void rotateLeft() {
+  setMotor(FL_IN1, FL_IN2, -MAX_PWM);
+  setMotor(FR_IN1, FR_IN2,  MAX_PWM);
+  setMotor(RL_IN1, RL_IN2, -MAX_PWM);
+  setMotor(RR_IN1, RR_IN2,  MAX_PWM);
+}
+
+void rotateRight() {
+  setMotor(FL_IN1, FL_IN2,  MAX_PWM);
+  setMotor(FR_IN1, FR_IN2, -MAX_PWM);
+  setMotor(RL_IN1, RL_IN2,  MAX_PWM);
+  setMotor(RR_IN1, RR_IN2, -MAX_PWM);
 }
 
 // Quadrature direction logic matches encoder_test.ino: if B is HIGH when A
