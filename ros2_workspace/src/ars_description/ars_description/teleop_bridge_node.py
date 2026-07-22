@@ -140,6 +140,10 @@ class TeleopBridgeNode(Node):
         self.declare_parameter('safety_enabled', True)
         self.declare_parameter('stop_distance_m', 0.30)
         self.declare_parameter('sector_half_angle_deg', 45.0)
+        # Debug aid: when true, prints the nearest distance per sector ~1/s so
+        # you can SEE what the guard sees (is /scan arriving? is the object in
+        # the sector you think?). Off by default so normal runs stay quiet.
+        self.declare_parameter('log_sectors', False)
 
         self.port = self.get_parameter('port').value
         self.baud = int(self.get_parameter('baud').value)
@@ -147,6 +151,7 @@ class TeleopBridgeNode(Node):
         self.stop_distance = float(self.get_parameter('stop_distance_m').value)
         self.sector_half_angle = math.radians(
             float(self.get_parameter('sector_half_angle_deg').value))
+        self.log_sectors = bool(self.get_parameter('log_sectors').value)
 
         self.serial_conn = self._open_serial()
         self.buffer = ''
@@ -237,6 +242,18 @@ class TeleopBridgeNode(Node):
 
         for d in DIRECTIONS:
             self.blocked[d] = mins[d] < self.stop_distance
+
+        if self.log_sectors:
+            def fmt(x):
+                return f'{x:.2f}' if math.isfinite(x) else '  -- '
+            blocked_now = [d for d in DIRECTIONS if self.blocked[d]] or ['none']
+            # throttle so the teleop terminal isn't flooded (keys still work).
+            self.get_logger().info(
+                f'sectors[m] F={fmt(mins["front"])} B={fmt(mins["back"])} '
+                f'L={fmt(mins["left"])} R={fmt(mins["right"])}  '
+                f'blocked={",".join(blocked_now)}',
+                throttle_duration_sec=1.0,
+            )
 
         # Real safety stop: if we're actively driving into a direction that is
         # now blocked, halt -- teleop drives continuously until the next
