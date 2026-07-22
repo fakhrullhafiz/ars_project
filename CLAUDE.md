@@ -84,6 +84,7 @@ If any of these facts appear to conflict with something in code or in a teammate
   ros2 run tf2_ros static_transform_publisher --x 0.1 --y 0 --z 0.05 --qx 0 --qy 0 --qz 0 --qw 1 --frame-id base_link --child-frame-id camera_link
   ```
   **These numbers are a guess, not a measurement** — real sensor placement needs Haikal's CAD/physical measurements and a proper URDF before this is trustworthy. This is Layer 3 polish, intentionally not pursued further given the 2026-07-22 evaluation timeline.
+- **`perception-ydlidar` merged into `main` (2026-07-22, authorized by Pekol).** All 6 commits fast-forwarded cleanly with no conflicts — `main` was also 18 commits behind before this (the whole encoder-rewire/motor-calibration history was sitting unmerged), so this one merge caught `main` up to everything through tonight's session. No `arduino/` files were touched by this merge itself. `perception-ydlidar` still exists on origin as a now-fully-merged branch; not yet deleted.
 
 ## Repo layout
 CAD files, the project plan, the report draft, and assembly photos are in Google Drive, not here. If you need them, ask the user to paste/upload the relevant content rather than assuming they're accessible from this repo.
