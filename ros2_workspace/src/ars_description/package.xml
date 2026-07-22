@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ars_description</name>
+  <version>0.1.0</version>
+  <description>
+    Display-only URDF of the real robot (chassis + 4 mecanum wheels + LIDAR
+    mount) driven live by the wheel encoders. Turning a wheel by hand streams
+    the Arduino's "E,..." telemetry through encoder_joint_state_node into
+    /joint_states, so the wheel spins in RViz in real time and its TF axes
+    rotate. NO Gazebo/physics -- that's mecanum_sim's job; keep the two URDFs'
+    shared wheel geometry in sync. See CLAUDE.md.
+  </description>
+  <maintainer email="mohdtsaqif@gmail.com">Tsaqif</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <!-- for robot_and_lidar_launch.py, which starts the YDLidar driver node
+       directly instead of duplicating its bundled static transform (the
+       URDF's laser_joint already provides base_link->laser_frame). -->
+  <exec_depend>ydlidar_ros2_driver</exec_depend>
+  <!-- for robot_and_slam_launch.py, which adds Cartographer's map-building
+       nodes alongside the robot model (see cartographer_slam package). -->
+  <exec_depend>cartographer_ros</exec_depend>
+  <!-- pyserial is used by encoder_joint_state_node; it is not an apt rosdep
+       key on this system (installed via pip, break-system-packages), so it is
+       not a formal dependency here (see the node's _open_serial() message). -->
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

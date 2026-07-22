@@ -1,0 +1,194 @@
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /Map1
+        - /RobotModel1
+        - /LaserScan1
+      Splitter Ratio: 0.5
+    Tree Height: 500
+  - Class: rviz_common/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: true
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map
+      Update Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /map_updates
+      Use Timestamp: false
+      Value: true
+    - Alpha: 1
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_description
+      Enabled: true
+      Name: RobotModel
+      Visual Enabled: true
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Frame Timeout: 15
+      Marker Scale: 0.3
+      Name: TF
+      Show Arrows: false
+      Show Axes: true
+      Show Names: true
+      Update Interval: 0
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Class: rviz_default_plugins/LaserScan
+      Color: 255; 60; 0
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Name: LaserScan
+      Position Transformer: XYZ
+      Size (Pixels): 3
+      Size (m): 0.02
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        # MUST be Best Effort -- ydlidar_ros2_driver publishes /scan as
+        # sensor-data (Best Effort) QoS; a Reliable subscriber silently
+        # receives nothing (documented gotcha, see CLAUDE.md).
+        Reliability Policy: Best Effort
+        Value: /scan
+      Value: true
+    # --- RealSense RGB (color) image ------------------------------------------
+    # Realsense publishes images as sensor-data (Best Effort) QoS, same as the
+    # LIDAR -- a Reliable subscriber silently gets nothing, so Best Effort here
+    # too. This panel stays black until the staggered start enables color (~2s
+    # after launch, see robot_slam_camera_launch.py).
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: RealSense Color
+      Normalize Range: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /camera/camera/color/image_raw
+      Value: true
+    # --- RealSense depth (stereo module) image --------------------------------
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: RealSense Depth
+      Normalize Range: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /camera/camera/depth/image_rect_raw
+      Value: true
+    # --- RealSense depth as 3D points, colored by RGB -------------------------
+    # DepthCloud reprojects the depth image into 3D on the RViz side (using the
+    # depth camera_info) -- so it needs NO extra camera stream / no USB load,
+    # unlike enabling pointcloud.enable on the D455. It appears in the map via
+    # base_link -> camera_link (the PLACEHOLDER transform) -> the realsense
+    # optical frames, so its position is only as good as that unmeasured guess.
+    # Colored by RGB once the staggered color stream comes up (~2 s in); until
+    # then it shows depth-rainbow coloring.
+    - Auto Size:
+        Auto Size Factor: 1
+        Value: true
+      Class: rviz_default_plugins/DepthCloud
+      Color: 255; 255; 255
+      Color Image Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /camera/camera/color/image_raw
+      Color Transformer: RGB8
+      Color Transport Hint: raw
+      Decay Time: 0
+      Depth Map Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /camera/camera/depth/image_rect_raw
+      Depth Map Transport Hint: raw
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: DepthCloud
+      Occlusion Compensation:
+        Occlusion Time-Out: 30
+        Value: false
+      Position Transformer: XYZ
+      Queue Size: 5
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.01
+      Style: Flat Squares
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    # map, not base_link -- watch the robot move THROUGH a growing map as
+    # Cartographer tracks it, not sitting fixed at the origin.
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+      Line color: 128; 128; 0
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 5
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Name: Current View
+      Pitch: 1.2
+      Target Frame: <Fixed Frame>
+      Yaw: 0.785
+    Saved: ~
+Window Geometry:
+  Height: 850
+  Width: 1300

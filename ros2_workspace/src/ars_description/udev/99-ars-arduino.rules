@@ -1,0 +1,15 @@
+# Stable /dev/arduino symlink for the Arduino Mega, so the encoder telemetry
+# port doesn't shift out from under the launch files when USB devices
+# re-enumerate (the LIDAR (CP210x) and Arduino (CH340) otherwise swap ttyUSB
+# numbers -- see CLAUDE.md's 2026-07-22 ttyUSB port-mismatch finding).
+#
+# The Arduino on this robot is a CH340 USB-serial bridge (QinHeng 1a86:7523).
+# This is the ONLY CH340 on the robot, so matching the vendor:product is
+# unambiguous. The LIDAR is a CP210x (10c4:ea60) handled by 99-ydlidar.rules.
+#
+# INSTALL (one-time, needs sudo):
+#   sudo cp udev/99-ars-arduino.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+# Then unplug/replug the Arduino and confirm:  ls -l /dev/arduino
+# After that, launch with:  port:=/dev/arduino
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="arduino"

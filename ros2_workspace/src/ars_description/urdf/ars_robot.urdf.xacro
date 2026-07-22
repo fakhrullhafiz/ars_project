@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+<!--
+  ars_robot.urdf.xacro  (DISPLAY-ONLY, real hardware)
+
+  A visual model of the real robot for RViz: chassis + 4 mecanum wheels +
+  the LIDAR mount, driven live by the wheel encoders. Turning a wheel by
+  hand streams encoder counts from the Arduino (main_robot.ino's "E,..."
+  telemetry) -> encoder_joint_state_node -> /joint_states ->
+  robot_state_publisher -> the wheel spins in RViz in real time, and each
+  wheel's TF axes (shown by RViz's TF display) rotate with it.
+
+  This is display-only: NO Gazebo sensor, NO ros2_control, NO inertials,
+  unlike mecanum_sim/urdf/mecanum_robot.urdf.xacro (that one is for physics
+  sim). Same real wheel geometry though, so keep the two in sync if the
+  measured numbers ever change.
+
+  REAL geometry (from the codebase, not guessed): wheelbase 0.142m, track
+  0.195m, wheel diameter 97mm (wheel_odometry_node.py / encoder_test.ino).
+  PLACEHOLDER: chassis box size + wheel width (not measured against the
+  real chassis; real dims live in the Drive doc, see CLAUDE.md).
+-->
+<robot name="ars_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Real geometry -->
+  <xacro:property name="wheelbase" value="0.142"/>
+  <xacro:property name="track_width" value="0.195"/>
+  <xacro:property name="wheel_radius" value="0.0485"/>
+
+  <!-- Placeholder geometry -->
+  <xacro:property name="wheel_width" value="0.04"/>
+  <xacro:property name="chassis_length" value="0.24"/>
+  <xacro:property name="chassis_width" value="0.24"/>
+  <xacro:property name="chassis_height" value="0.10"/>
+  <xacro:property name="ground_clearance" value="0.01"/>
+
+  <xacro:property name="half_wb" value="${wheelbase / 2.0}"/>
+  <xacro:property name="half_tw" value="${track_width / 2.0}"/>
+
+  <material name="chassis_grey"><color rgba="0.30 0.30 0.33 1.0"/></material>
+  <material name="wheel_black"><color rgba="0.08 0.08 0.08 1.0"/></material>
+  <material name="marker_yellow"><color rgba="0.95 0.80 0.10 1.0"/></material>
+  <material name="lidar_blue"><color rgba="0.20 0.45 0.85 1.0"/></material>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${ground_clearance + chassis_height / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="chassis_grey"/>
+    </visual>
+  </link>
+
+  <!-- Wheel macro. The bright marker box is offset from the axle on purpose:
+       a plain smooth cylinder shows no visible rotation in RViz, so this
+       "valve stem" orbits the axle to make hand-turning obviously visible in
+       the RobotModel (the TF axes triad rotating is the other indicator). -->
+  <xacro:macro name="wheel" params="prefix x_offset y_offset">
+    <link name="${prefix}_wheel_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+      <visual>
+        <origin xyz="${wheel_radius * 0.6} 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${wheel_radius * 0.7} 0.012 ${wheel_width * 1.05}"/>
+        </geometry>
+        <material name="marker_yellow"/>
+      </visual>
+    </link>
+
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child link="${prefix}_wheel_link"/>
+      <!-- z = wheel_radius so the wheel's BOTTOM touches the floor (z=0),
+           not its center; a bare "0" here put half the wheel underground. -->
+      <origin xyz="${x_offset} ${y_offset} ${wheel_radius}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel prefix="front_left"  x_offset="${half_wb}"  y_offset="${half_tw}"/>
+  <xacro:wheel prefix="front_right" x_offset="${half_wb}"  y_offset="${-half_tw}"/>
+  <xacro:wheel prefix="rear_left"   x_offset="${-half_wb}" y_offset="${half_tw}"/>
+  <xacro:wheel prefix="rear_right"  x_offset="${-half_wb}" y_offset="${-half_tw}"/>
+
+  <!-- LIDAR mount: matches ydlidar_launch.py's real (0,0,0.02) static
+       transform, so this display and the live /scan agree on laser_frame. -->
+  <link name="laser_frame">
+    <visual>
+      <geometry><cylinder radius="0.03" length="0.03"/></geometry>
+      <material name="lidar_blue"/>
+    </visual>
+  </link>
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_frame"/>
+    <origin xyz="0 0 0.02" rpy="0 0 0"/>
+  </joint>
+
+</robot>
