@@ -23,12 +23,32 @@ documented in that file's header comment. When the path clears, it does NOT
 automatically send 'G' (resume) — see the comment near the publish logic
 for why that's a deliberate choice, not an oversight.
 
+ALSO subscribes to CAMERA_SCAN_TOPIC (/camera_scan by default), a second
+sensor_msgs/LaserScan expected to come from depthimage_to_laserscan
+converting the RealSense D455's depth image (see
+obstacle_avoidance_with_camera_launch.py). Same message type, same forward-
+cone check, same STOP_DISTANCE_M/FORWARD_CONE_DEG thresholds — reusing one
+set of constants for both sources rather than adding camera-specific ones
+that have never been tuned against anything. LIDAR and camera are combined
+with OR (either source seeing something close enough triggers a stop) and
+share the ONE open serial connection below — CLAUDE.md and
+wheel_odometry_node.py both flag that opening a second, separate serial
+connection to the same port from another node is untested/risky, so this
+node stays the single point of contact with the Arduino for obstacle stops.
+
+Bring up the LIDAR driver alone first (as above). The camera path
+(depthimage_to_laserscan + RealSense) is separate and untested as of this
+writing — the D455 was not physically connected when this was written, so
+CAMERA_SCAN_TOPIC's real topic names/remappings need confirming once it is
+(see obstacle_avoidance_with_camera_launch.py's header comment).
+
 CONFIGURE BEFORE USE:
   - SERIAL_PORT: the Arduino's port as seen from the SBC/Linux side
                  (check with `ls /dev/ttyACM*` or `ls /dev/ttyUSB*` after
                  plugging in; commonly /dev/ttyACM0)
   - STOP_DISTANCE_M: how close an obstacle must be (in meters) to trigger stop
   - FORWARD_CONE_DEG: how wide a forward-facing angular window to check
+  - CAMERA_SCAN_TOPIC: the depth-derived LaserScan topic (see above)
 """
 
 import math
@@ -48,6 +68,7 @@ SERIAL_PORT = '/dev/ttyACM0'   # CONFIRM this matches your actual Arduino port
 SERIAL_BAUD = 115200           # must match Serial.begin() in main_robot.ino
 STOP_DISTANCE_M = 0.40         # stop if anything is closer than 40cm in the forward cone
 FORWARD_CONE_DEG = 30          # check +/- 15 degrees around straight-ahead (0 deg)
+CAMERA_SCAN_TOPIC = '/camera_scan'  # depth-derived LaserScan, see module docstring
 
 
 class ObstacleDetectorNode(Node):
@@ -56,16 +77,25 @@ class ObstacleDetectorNode(Node):
 
         self.serial_conn = self._open_serial()
         self.last_state_blocked = False
+        self.lidar_blocked = False
+        self.camera_blocked = False
 
-        self.subscription = self.create_subscription(
+        self.lidar_subscription = self.create_subscription(
             LaserScan,
             '/scan',
-            self.scan_callback,
+            self.lidar_scan_callback,
+            10
+        )
+        self.camera_subscription = self.create_subscription(
+            LaserScan,
+            CAMERA_SCAN_TOPIC,
+            self.camera_scan_callback,
             10
         )
         self.get_logger().info(
             f'obstacle_detector started. Stop threshold: {STOP_DISTANCE_M} m, '
-            f'forward cone: {FORWARD_CONE_DEG} deg.'
+            f'forward cone: {FORWARD_CONE_DEG} deg. Sources: /scan (LIDAR), '
+            f'{CAMERA_SCAN_TOPIC} (RealSense depth, if publishing).'
         )
 
     def _open_serial(self):
@@ -86,26 +116,39 @@ class ObstacleDetectorNode(Node):
             )
             return None
 
-    def scan_callback(self, msg: LaserScan):
+    def lidar_scan_callback(self, msg: LaserScan):
         nearest_in_cone = self._nearest_obstacle_in_forward_cone(msg)
+        if nearest_in_cone is not None:
+            self.lidar_blocked = nearest_in_cone < STOP_DISTANCE_M
+        self._update_combined_state('LIDAR', nearest_in_cone)
 
-        if nearest_in_cone is None:
-            return  # no valid readings in the cone this scan, skip
+    def camera_scan_callback(self, msg: LaserScan):
+        nearest_in_cone = self._nearest_obstacle_in_forward_cone(msg)
+        if nearest_in_cone is not None:
+            self.camera_blocked = nearest_in_cone < STOP_DISTANCE_M
+        self._update_combined_state('camera', nearest_in_cone)
 
-        is_blocked = nearest_in_cone < STOP_DISTANCE_M
+    def _update_combined_state(self, source: str, nearest_in_cone):
+        # OR, not AND: either sensor alone is enough reason to stop. A scan
+        # with no valid readings in the cone (nearest_in_cone is None, e.g.
+        # one source hasn't published yet) leaves that source's blocked flag
+        # unchanged rather than clearing it — a missing reading is not the
+        # same as "confirmed clear".
+        is_blocked = self.lidar_blocked or self.camera_blocked
 
         # Only send a command on a STATE CHANGE, not every scan — sending 'S'
         # repeatedly is harmless (main_robot.ino just re-stops), but flooding
         # serial with unnecessary writes isn't good practice.
         if is_blocked and not self.last_state_blocked:
+            detail = f'{nearest_in_cone:.2f} m' if nearest_in_cone is not None else 'prior reading'
             self.get_logger().warn(
-                f'Obstacle detected at {nearest_in_cone:.2f} m — sending STOP'
+                f'Obstacle detected via {source} ({detail}) — sending STOP'
             )
             self._send_command('S')
         elif not is_blocked and self.last_state_blocked:
             self.get_logger().info(
-                f'Path clear (nearest: {nearest_in_cone:.2f} m). '
-                f'NOT auto-sending resume — see node docstring for why.'
+                'Path clear on both sources. '
+                'NOT auto-sending resume — see node docstring for why.'
             )
             # Deliberately NOT calling self._send_command('G') here.
             # Auto-resuming the instant a single scan looks clear risks
